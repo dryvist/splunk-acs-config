@@ -18,7 +18,7 @@
 ## File keys and stored data
 
 - indexes uses name and stores writable index fields.
-- hec-tokens uses spec.name. Token values are never read, written, or printed.
+- hec-tokens uses name. Token values are never read, written, or printed.
 - Both ip-allowlist types use feature and store a subnet list.
 - Both outbound-ports types use port and store subnets. A configured reason is
   sent when creating a port; plans compare subnets.

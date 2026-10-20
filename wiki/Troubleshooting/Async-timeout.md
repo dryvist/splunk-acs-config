@@ -6,18 +6,21 @@
 
 ## Symptom
 
-ACS returns HTTP 202, but the operation does not finish before the client
-timeout.
+Push reports `timed out waiting for <type>/<key> to match the files`. ACS
+returned HTTP 202 for the change, and the object still differs from the files
+after 15 minutes of polling.
 
 ## Action
 
-Run plan to check the current live state before retrying the operation. If the
-operation is still pending, wait for it to finish and plan again.
+Run plan with the same types and names to check the current live state. If the
+change is still pending, wait and plan again. Run push again only when plan
+still shows the change and the earlier operation has finished.
 
 ## Verify
 
-- The operation's final state is visible in a new plan.
-- No duplicate change is sent while the first operation is pending.
+- The object's live state is visible in a new plan.
+- Plan prints NO DIFFERENCES for the object.
+- Push is not sent again while the first operation is pending.
 
 ## Related
 

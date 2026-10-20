@@ -24,7 +24,7 @@ Each environment is a top-level table. An environment can limit its types:
 
 [prod]
 
-[itsi-prod]
+[limited]
 types = ["roles", "app-permissions"]
 ~~~
 

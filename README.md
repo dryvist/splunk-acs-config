@@ -6,15 +6,22 @@ compare, push, copy, and document those settings through the ACS API.
 ## Repository contents
 
 - `acs_config.py`: command-line tool for ACS settings.
-- `pipeline/open_pr.py`: pipeline helper that publishes pulled settings.
+- `pipeline/`: pipeline helpers. `open_pr.py` publishes pulled settings as a
+  pull request. `output.py` formats command output.
 - `templates/`: reusable Azure Pipelines templates.
 - `example/`: sample configuration and pipeline.
+- `tests/`: unit tests.
 - `wiki/`: setup, reference, and troubleshooting pages.
 
-## Quick start
+## Installation
 
-From the tools repo, use the sample configuration to set the ACS endpoint and
-token, then run a read-only plan:
+Clone the repository. Run it with Python 3.11 or later. The tool uses only the
+standard library, so there is nothing to install.
+
+## Usage
+
+From the repository root, set the stack and token for the example
+configuration, then run a read-only plan:
 
 ~~~sh
 cd example
@@ -23,8 +30,9 @@ export ACS_TOKEN="<acs-token>"
 python3 ../acs_config.py plan nonprod --dir .
 ~~~
 
-Set `SPLUNK_SEARCH_HEAD` when the ACS endpoint uses a search head. See the
-Commands page for filters, other actions, and environment variables.
+Set `SPLUNK_SEARCH_HEAD` when the ACS endpoint uses a search head. See
+[Commands](wiki/Reference/Commands.md) for filters, other actions, and
+environment variables.
 
 ## Pipeline
 
@@ -40,9 +48,4 @@ commit or pull request.
 - [Wiki home](wiki/Home.md)
 - [Getting started](wiki/Getting-started.md)
 - [Reference](wiki/Reference.md)
-- [File format](wiki/Reference/File-format.md)
-- [Commands](wiki/Reference/Commands.md)
-- [Object types](wiki/Reference/Object-types.md)
-- [Copy between environments](wiki/Reference/Copy-between-environments.md)
-- [Push one object](wiki/Reference/Push-one-object.md)
 - [Troubleshooting](wiki/Troubleshooting.md)

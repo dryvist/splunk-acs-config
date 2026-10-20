@@ -25,10 +25,10 @@ differences as overrides.
 
 **Verify:**
 
-1. Confirm the `Pull prod live into repo` step finishes before the
-   `Pull nonprod live into repo` step starts.
-2. Confirm the last step prints a pull request link, or `Pull request for
-   acs-pull/<build id> is already open`.
+1. Confirm the `Pull nonprod` job starts after the `Pull prod` job finishes.
+2. Confirm the `Publish <env> settings as a pull request` step of a job with
+   changes prints a pull request link, or
+   `Pull request for acs-pull/<build id> is already open`.
 3. Confirm a run with no changes prints `NO DIFFERENCES` and opens no pull
    request.
 4. Confirm no step in the run is a push step.

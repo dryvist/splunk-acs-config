@@ -1,3 +1,0 @@
-name = "otel_collector"
-allowedIndexes = ["linux", "os_metrics"]
-defaultIndex = "linux"

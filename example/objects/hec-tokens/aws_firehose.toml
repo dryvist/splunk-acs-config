@@ -1,5 +1,0 @@
-name = "aws_firehose"
-allowedIndexes = ["aws"]
-defaultIndex = "aws"
-defaultSourcetype = "aws:firehose:json"
-useAck = true

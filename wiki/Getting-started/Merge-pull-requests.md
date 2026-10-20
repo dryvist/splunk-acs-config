@@ -20,8 +20,8 @@
 **Verify:**
 
 1. Confirm the pull request shows **Completed**.
-2. Confirm `main` contains the files under `objects/` from every pulled
-   environment.
+2. Confirm `main` contains one file per object type under `objects/`, with
+   each pulled environment's values in its stanzas.
 
 ## Related
 

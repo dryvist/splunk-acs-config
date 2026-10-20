@@ -1,0 +1,17 @@
+[default]
+
+[default.nonprod]
+searchableDays = 30
+
+[legacy]
+
+[pan]
+
+[retired]
+environments = ["prod"]
+
+[shared]
+searchableDays = 180
+
+[shared.nonprod]
+searchableDays = 60

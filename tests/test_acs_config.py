@@ -100,9 +100,8 @@ class TomlTests(unittest.TestCase):
 
 class EffectiveTests(ACSTestCase):
     def test_layers_apply_in_order(self):
-        defaults = acs_config.load_defaults(self.root, "indexes")
-        repo = acs_config.load_repo(self.root, "indexes")
-        shared, pan = repo["shared"][1], repo["pan"][1]
+        defaults, repo = acs_config.load_type(self.root, "indexes", acs_config.load_environments(self.root))
+        shared, pan = repo["shared"], repo["pan"]
         merged = acs_config.merged
         self.assertEqual(merged("indexes", defaults, shared, "prod")["searchableDays"], 180)
         self.assertEqual(merged("indexes", defaults, shared, "nonprod")["searchableDays"], 60)
@@ -110,57 +109,69 @@ class EffectiveTests(ACSTestCase):
         self.assertEqual(merged("indexes", defaults, pan, "prod")["searchableDays"], 90)
         self.assertEqual(merged("indexes", defaults, pan, "prod")["datatype"], "event")
 
+    def test_splunk_defaults_are_the_lowest_layer(self):
+        self.assertEqual(acs_config.merged("indexes", {}, {"name": "x"}, "prod"),
+                         {"name": "x", "datatype": "event", "maxDataSizeMB": 0, "searchableDays": 90})
+        self.assertEqual(acs_config.merged("indexes", {"searchableDays": 30}, {"name": "x"}, "prod")["searchableDays"],
+                         30)
+
     def test_unknown_field_is_an_error(self):
         with self.assertRaisesRegex(acs_config.ACSConfigError, "unknown field"):
             acs_config.merged("indexes", {}, {"name": "x", "bogus": 1}, "prod")
 
 
 class PullTests(ACSTestCase):
-    def test_pull_colors_created_changed_and_deleted_paths_in_pipeline(self):
+    def test_pull_colors_changed_type_file_in_pipeline(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("new"), index("pan", searchableDays=200)]}})
         with mock.patch.dict(os.environ, {"TF_BUILD": "True"}):
             code, out, _ = self.run_cli(
                 fake, "pull", "prod", "--types", "indexes", "--names", "new pan retired")
         self.assertEqual(code, 0)
-        self.assertIn("\033[32mcreated objects/indexes/new.toml\033[0m", out)
-        self.assertIn("\033[33mchanged objects/indexes/pan.toml\033[0m", out)
-        self.assertIn("\033[31mdeleted objects/indexes/retired.toml\033[0m", out)
+        self.assertIn("\033[33mchanged objects/indexes.toml\033[0m", out)
+        self.assertNotIn("retired", self.read("objects/indexes.toml"))
 
     def test_new_object_keeps_only_differences_from_defaults(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("newidx")]}})
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes", "--names", "newidx")
         self.assertEqual(code, 0)
-        self.assertEqual(self.read("objects/indexes/newidx.toml"),
-                         {"environments": ["prod"], "name": "newidx"})
+        self.assertEqual(self.read("objects/indexes.toml")["newidx"], {"environments": ["prod"]})
 
     def test_changed_value_becomes_override(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("shared", searchableDays=200)]}})
         self.run_cli(fake, "pull", "prod", "--types", "indexes", "--names", "shared")
-        self.assertEqual(self.read("objects/indexes/shared.toml"), {
-            "name": "shared", "searchableDays": 180,
-            "overrides": {"nonprod": {"searchableDays": 60}, "prod": {"searchableDays": 200}}})
+        self.assertEqual(self.read("objects/indexes.toml")["shared"], {
+            "searchableDays": 180, "nonprod": {"searchableDays": 60}, "prod": {"searchableDays": 200}})
 
     def test_equal_value_removes_override(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("shared", searchableDays=180)]}})
         self.run_cli(fake, "pull", "nonprod", "--types", "indexes", "--names", "shared")
-        self.assertEqual(self.read("objects/indexes/shared.toml"),
-                         {"name": "shared", "searchableDays": 180})
+        self.assertEqual(self.read("objects/indexes.toml")["shared"], {"searchableDays": 180})
 
     def test_field_missing_live_is_unset_for_that_env(self):
         live = {k: v for k, v in index("shared").items() if k != "searchableDays"}
         fake = FakeACS({("GET", "/indexes"): {"indexes": [live]}})
         code, _, _ = self.run_cli(fake, "pull", "nonprod", "--types", "indexes", "--names", "shared")
         self.assertEqual(code, 0)
-        self.assertEqual(self.read("objects/indexes/shared.toml")["overrides"],
-                         {"nonprod": {"unset": ["searchableDays"]}})
+        self.assertEqual(self.read("objects/indexes.toml")["shared"]["nonprod"], {"unset": ["searchableDays"]})
         _, out, _ = self.run_cli(fake, "plan", "nonprod", "--types", "indexes", "--names", "shared")
         self.assertIn("NO DIFFERENCES", out)
+
+    def test_new_live_object_adds_one_stanza_to_existing_file(self):
+        before = self.read("objects/indexes.toml")
+        live = [index("legacy"), index("pan"), index("retired"), index("shared", searchableDays=180),
+                index("newidx")]
+        fake = FakeACS({("GET", "/indexes"): {"indexes": live}})
+        code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes")
+        self.assertEqual(code, 0)
+        after = self.read("objects/indexes.toml")
+        self.assertEqual(after["newidx"], {"environments": ["prod"]})
+        self.assertEqual({k: v for k, v in after.items() if k != "newidx"}, before)
 
     def test_missing_live_drops_env_and_expands_absent_list(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": []}})
         self.run_cli(fake, "pull", "prod", "--types", "indexes")
-        self.assertEqual(self.read("objects/indexes/legacy.toml")["environments"], ["nonprod"])
-        self.assertFalse((self.root / "objects/indexes/retired.toml").exists())
+        self.assertEqual(self.read("objects/indexes.toml")["legacy"]["environments"], ["nonprod"])
+        self.assertNotIn("retired", self.read("objects/indexes.toml"))
 
     def test_hec_token_is_never_written(self):
         spec = {"name": "newhec", "disabled": False, "useAck": False,
@@ -169,8 +180,8 @@ class PullTests(ACSTestCase):
                         {"http-event-collectors": [{"spec": spec, "token": "SECRET-VALUE"}]}})
         code, out, err = self.run_cli(fake, "pull", "prod", "--types", "hec-tokens", "--names", "newhec")
         self.assertEqual(code, 0)
-        self.assertEqual(self.read("objects/hec-tokens/newhec.toml"),
-                         {"defaultIndex": "shared", "environments": ["prod"], "name": "newhec"})
+        self.assertEqual(self.read("objects/hec-tokens.toml")["newhec"],
+                         {"defaultIndex": "shared", "environments": ["prod"]})
         self.assertNotIn("SECRET-VALUE", out + err)
         for path in self.root.rglob("*.toml"):
             self.assertNotIn("SECRET-VALUE", path.read_text(encoding="utf-8"))
@@ -180,19 +191,19 @@ class PullTests(ACSTestCase):
                         {"apps": [{"name": "my_app", "perms": {"read": ["*"], "write": ["sc_admin"]}}]}})
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "app-permissions", "--names", "my_app")
         self.assertEqual(code, 0)
-        self.assertEqual(self.read("objects/app-permissions/my_app.toml"),
-                         {"environments": ["prod"], "name": "my_app", "read": ["*"], "write": ["sc_admin"]})
+        self.assertEqual(self.read("objects/app-permissions.toml")["my_app"],
+                         {"environments": ["prod"], "read": ["*"], "write": ["sc_admin"]})
 
     def test_built_in_roles_are_skipped_and_imported_roles_mapped(self):
         fake = FakeACS({("GET", "/roles"): {"roles": [
             {"name": "admin", "capabilities": ["admin_all_objects"]},
-            {"name": "pan_analyst", "imported": {"roles": ["user"]}, "srchIndexesAllowed": ["pan"]},
+            {"name": "pan_analyst", "imported": {"roles": ["user"]}, "srchIndexesAllowed": ["pan"],
+             "srchDiskQuota": 100, "srchJobsQuota": 3, "rtSrchJobsQuota": 6},
         ]}})
-        self.run_cli(fake, "pull", "prod", "--types", "roles")
-        self.assertFalse((self.root / "objects/roles/admin.toml").exists())
-        self.assertEqual(self.read("objects/roles/pan_analyst.toml"), {
-            "environments": ["prod"], "importedRoles": ["user"], "name": "pan_analyst",
-            "srchIndexesAllowed": ["pan"]})
+        self.run_cli(fake, "pull", "prod", "--types", "roles", "--names", "admin pan_analyst")
+        self.assertNotIn("admin", self.read("objects/roles.toml"))
+        self.assertEqual(self.read("objects/roles.toml")["pan_analyst"], {
+            "environments": ["prod"], "importedRoles": ["user"], "srchIndexesAllowed": ["pan"]})
 
 
 class PlanTests(ACSTestCase):
@@ -202,10 +213,9 @@ class PlanTests(ACSTestCase):
         self.assertEqual(out.splitlines()[-1], "NO DIFFERENCES")
 
     def test_object_push_flag_overrides_type_default(self):
-        (self.root / "objects/roles").mkdir()
-        (self.root / "objects/roles/analyst.toml").write_text('name = "analyst"\npush = true\n')
-        shared = self.root / "objects/indexes/shared.toml"
-        shared.write_text("push = false\n" + shared.read_text())
+        (self.root / "objects/roles.toml").write_text('[analyst]\npush = true\n')
+        indexes = self.root / "objects/indexes.toml"
+        indexes.write_text(indexes.read_text().replace("[shared]\n", "[shared]\npush = false\n"))
         fake = FakeACS({("GET", "/roles"): {"roles": []},
                         ("GET", "/indexes"): {"indexes": [index("shared", searchableDays=170)]}})
         code, out, _ = self.run_cli(fake, "plan", "prod", "--types", "indexes roles",
@@ -309,30 +319,88 @@ class PushTests(ACSTestCase):
             "reason": "Example reason"})])
 
 
+class InferenceTests(ACSTestCase):
+    def setUp(self):
+        super().setUp()
+        (self.root / "objects/indexes.toml").unlink()
+
+    def test_most_common_value_ties_break_to_the_smallest_json_text(self):
+        live = {"a": {"name": "a", "searchableDays": 60}, "b": {"name": "b", "searchableDays": 30}}
+        self.assertEqual(acs_config.common_values("indexes", live)["searchableDays"], 30)
+
+    def test_first_pull_writes_default_from_most_common_values(self):
+        live = [index("a", searchableDays=30), index("b", searchableDays=30),
+                index("c", searchableDays=30), index("d", searchableDays=30, datatype="metric")]
+        fake = FakeACS({("GET", "/indexes"): {"indexes": live}})
+        code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes")
+        self.assertEqual(code, 0)
+        indexes = self.read("objects/indexes.toml")
+        self.assertEqual(indexes["default"], {"searchableDays": 30})
+        self.assertEqual(indexes["a"], {"environments": ["prod"]})
+        self.assertEqual(indexes["d"], {"environments": ["prod"], "datatype": "metric"})
+
+    def test_nonprod_pull_after_prod_writes_nonprod_default_and_keeps_default(self):
+        prod = {"indexes": [index("a", searchableDays=180), index("b", searchableDays=180)]}
+        nonprod = {"indexes": [index("a", searchableDays=30), index("b", searchableDays=30)]}
+        fake = FakeACS({("GET", "/indexes"): Seq(prod, nonprod)})
+        self.run_cli(fake, "pull", "prod", "--types", "indexes")
+        code, _, _ = self.run_cli(fake, "pull", "nonprod", "--types", "indexes")
+        self.assertEqual(code, 0)
+        indexes = self.read("objects/indexes.toml")
+        self.assertEqual(indexes["default"], {"searchableDays": 180, "nonprod": {"searchableDays": 30}})
+        self.assertEqual(indexes["a"], {})
+
+    def test_hand_set_default_is_not_changed_by_pull(self):
+        path = self.root / "objects/indexes.toml"
+        path.write_text("[default]\nsearchableDays = 120\n", encoding="utf-8")
+        fake = FakeACS({("GET", "/indexes"): {"indexes": [index("a", searchableDays=90)]}})
+        code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.read("objects/indexes.toml")["default"],
+                         {"searchableDays": 120, "prod": {"searchableDays": 90}})
+
+    def test_plan_after_pull_prints_no_differences(self):
+        live = {"indexes": [index("a", searchableDays=30), index("b", searchableDays=30),
+                            index("c", searchableDays=30), index("d", searchableDays=30, datatype="metric"),
+                            index("e", searchableDays=60, maxDataSizeMB=5)]}
+        fake = FakeACS({("GET", "/indexes"): live})
+        self.run_cli(fake, "pull", "prod", "--types", "indexes")
+        self.run_cli(fake, "pull", "nonprod", "--types", "indexes")
+        for env in ("prod", "nonprod"):
+            with self.subTest(env=env):
+                code, out, _ = self.run_cli(fake, "plan", env, "--types", "indexes")
+                self.assertEqual(code, 0)
+                self.assertEqual(out.splitlines()[-1], "NO DIFFERENCES")
+
+
 class CopyTests(ACSTestCase):
     def test_copy_prod_to_nonprod_edits_files_only(self):
         code, out, _ = self.run_cli(FakeACS(), "copy", "prod", "nonprod", "--types", "indexes")
         self.assertEqual(code, 0)
-        self.assertEqual(self.read("objects/indexes/shared.toml"), {"name": "shared", "searchableDays": 180})
-        self.assertEqual(self.read("objects/indexes/retired.toml")["environments"], ["prod", "nonprod"])
-        self.assertNotIn("overrides", self.read("objects/indexes/_defaults.toml"))
-        self.assertIn("changed objects/indexes/retired.toml", out)
+        indexes = self.read("objects/indexes.toml")
+        self.assertEqual(indexes["shared"], {"searchableDays": 180})
+        self.assertEqual(indexes["retired"]["environments"], ["prod", "nonprod"])
+        self.assertNotIn("nonprod", indexes["default"])
+        self.assertIn("changed objects/indexes.toml", out)
 
 
 class DocTests(ACSTestCase):
-    def test_doc_bolds_values_that_differ_between_envs(self):
+    def test_doc_lists_counts_pushed_types_and_defaults_without_objects(self):
         code, _, _ = self.run_cli(FakeACS(), "doc")
         self.assertEqual(code, 0)
         readme = (self.root / "README.md").read_text(encoding="utf-8")
-        self.assertIn("| shared | searchableDays | **60** | **180** |", readme)
-        self.assertIn("| pan | searchableDays | **30** | **90** |", readme)
-        self.assertIn("| pan | datatype | event | event |", readme)
+        self.assertIn("| indexes | `objects/indexes.toml` | yes | 3 | 4 |", readme)
+        self.assertIn("| hec-tokens | `objects/hec-tokens.toml` | yes | 1 | 1 |", readme)
+        self.assertIn("| roles | `objects/roles.toml` | no | 0 | 0 |", readme)
+        self.assertIn("- datatype: event (Splunk default)", readme)
+        self.assertIn("- searchableDays: 30 ([default.nonprod])", readme)
+        self.assertNotIn("| shared |", readme)
 
 
 class CLITests(ACSTestCase):
     def test_malformed_toml_is_one_error_line_with_file_name(self):
-        path = self.root / "objects/indexes/malformed.toml"
-        path.write_text('name = "malformed\n', encoding="utf-8")
+        path = self.root / "objects/indexes.toml"
+        path.write_text("[pan\n", encoding="utf-8")
         code, _, err = self.run_cli(FakeACS(), "plan", "prod", "--types", "indexes")
         self.assertEqual(code, 1)
         self.assertEqual(err.count("\n"), 1)
@@ -374,8 +442,32 @@ class CLITests(ACSTestCase):
         self.assertIn("invalid UTF-8 response from GET", err)
         self.assertNotIn("Traceback", err)
 
+    def test_unknown_environment_table_is_one_error_line(self):
+        path = self.root / "objects/indexes.toml"
+        path.write_text(path.read_text(encoding="utf-8") + "\n[pan.staging]\nsearchableDays = 1\n", encoding="utf-8")
+        code, _, err = self.run_cli(FakeACS(), "plan", "prod", "--types", "indexes")
+        self.assertEqual(code, 1)
+        self.assertEqual(err.count("\n"), 1)
+        self.assertIn(f"{path}: unknown environment table [pan.staging]", err)
+        self.assertNotIn("Traceback", err)
+
+    def test_default_that_is_not_a_table_is_one_error_line(self):
+        path = self.root / "objects/indexes.toml"
+        path.write_text('default = "x"\n', encoding="utf-8")
+        code, _, err = self.run_cli(FakeACS(), "plan", "prod", "--types", "indexes")
+        self.assertEqual(code, 1)
+        self.assertEqual(err.count("\n"), 1)
+        self.assertIn("[default] must be a table", err)
+
+    def test_live_object_named_default_is_one_error_line(self):
+        fake = FakeACS({("GET", "/indexes"): {"indexes": [index("default")]}})
+        code, _, err = self.run_cli(fake, "plan", "prod", "--types", "indexes")
+        self.assertEqual(code, 1)
+        self.assertEqual(err.count("\n"), 1)
+        self.assertIn("live object 'default' is reserved", err)
+
     def test_invalid_utf8_toml_is_one_error_line_without_traceback(self):
-        path = self.root / "objects/indexes/malformed.toml"
+        path = self.root / "objects/indexes.toml"
         path.write_bytes(b"\xff")
         code, _, err = self.run_cli(FakeACS(), "plan", "prod", "--types", "indexes")
         self.assertEqual(code, 1)

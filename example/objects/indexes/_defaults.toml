@@ -1,6 +1,0 @@
-datatype = "event"
-maxDataSizeMB = 0
-searchableDays = 90
-
-[overrides.nonprod]
-searchableDays = 30

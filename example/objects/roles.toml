@@ -1,4 +1,6 @@
-name = "pan_analyst"
+[default]
+
+[pan_analyst]
 importedRoles = ["user"]
 srchIndexesAllowed = ["pan"]
 srchIndexesDefault = ["pan"]

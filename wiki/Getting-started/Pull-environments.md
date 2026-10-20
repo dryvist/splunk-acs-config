@@ -20,8 +20,9 @@
 With `all`, the run pulls environments in reverse name order, so `prod` runs
 before `nonprod`. Every environment commits to one branch,
 `acs-pull/<build id>`, with one pull request. The first environment pulled
-sets each object's base values; later environments add only their
-differences as overrides.
+sets the `[default]` stanza of each type, when it is empty, and each object's
+base values. Later environments add `[default.<env>]` and object overrides only
+where they differ.
 
 **Verify:**
 

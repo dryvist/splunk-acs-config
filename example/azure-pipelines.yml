@@ -3,11 +3,11 @@ trigger: none
 
 parameters:
   - name: environment
-    displayName: Environment (all, or one name; pull takes one)
+    displayName: Environment - all, or one name from environments.toml (pull runs envs in turn, push one job per env)
     type: string
     default: all
   - name: action
-    displayName: Action
+    displayName: Action - plan = compare only, pull = read live into a pull request, push = write files to the stack
     type: string
     default: plan
     values:
@@ -15,15 +15,15 @@ parameters:
       - pull
       - push
   - name: types
-    displayName: Object types
+    displayName: Object types - all, or space-separated from indexes hec-tokens ip-allowlists ip-allowlists-v6 outbound-ports outbound-ports-v6 roles app-permissions
     type: string
     default: all
   - name: names
-    displayName: Object names
+    displayName: Object names - all, or space-separated stanza names (index, token, feature, port, role or app)
     type: string
     default: all
   - name: delete
-    displayName: Delete live-only objects
+    displayName: Delete objects that exist only in the stack (push only; deleting an index deletes its data)
     type: boolean
     default: false
 

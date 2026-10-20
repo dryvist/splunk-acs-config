@@ -7,7 +7,7 @@
 ## Symptom
 
 A plan does not show a change for a built-in role, or a built-in role
-is not in objects/roles.
+is not in objects/roles.toml.
 
 ## Cause
 

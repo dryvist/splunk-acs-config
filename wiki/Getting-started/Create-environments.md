@@ -18,10 +18,12 @@
 8. Select **None** as the resource.
 9. Select **Create**.
 10. Open the `splunk-prod` environment.
-11. Select the `...` menu, then select **Approvals and checks**.
-12. Select **+**, then select **Approvals**.
-13. Add the approver who must approve prod pushes.
-14. Select **Create**.
+11. Select the `...` menu.
+12. Select **Approvals and checks**.
+13. Select **+**.
+14. Select **Approvals**.
+15. Add the approver who must approve prod pushes.
+16. Select **Create**.
 
 **Verify:**
 

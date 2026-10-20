@@ -34,6 +34,12 @@ directory is not the current directory.
 5. Run the pipeline with the `push` action for the target environment. Its
    deployment job waits for any approval on the environment.
 
+## Verify
+
+- Confirm the file diff contains the target environment values you expect.
+- Confirm the plan reports only the intended differences.
+- Confirm push ends with `NO DIFFERENCES after push`.
+
 ## Related
 
 - [File format](/Reference/File-format)
@@ -43,4 +49,4 @@ directory is not the current directory.
 ---
 
 [< Previous: Object types](/Reference/Object-types) |
-[Next: Troubleshooting >](/Troubleshooting)
+[Next: Push one object >](/Reference/Push-one-object)

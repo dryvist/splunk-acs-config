@@ -25,8 +25,8 @@ differences as overrides.
 
 **Verify:**
 
-1. Confirm the `pull prod live into repo` job finished before the
-   `pull nonprod live into repo` job started.
+1. Confirm the `Pull prod live into repo` step finishes before the
+   `Pull nonprod live into repo` step starts.
 2. Confirm the last step prints a pull request link, or `Pull request for
    acs-pull/<build id> is already open`.
 3. Confirm a run with no changes prints `NO DIFFERENCES` and opens no pull

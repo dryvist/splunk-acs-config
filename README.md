@@ -1,60 +1,45 @@
 # Splunk ACS configuration
 
-Keep Splunk Cloud ACS settings as TOML files in a private configuration
-repository. Use the files as readable documentation, a backup, and a source
-for restoring or copying settings between environments.
+Store Splunk Cloud ACS settings in TOML files and use `acs_config.py` to pull,
+compare, push, copy, and document those settings through the ACS API.
 
-## Files
+## Repository contents
 
-**environments.toml** lists the environments. The objects directory contains
-one TOML file per ACS object and an optional **_defaults.toml** for each type.
-The **example/** directory contains a sample configuration and pipeline.
+- `acs_config.py`: command-line tool for ACS settings.
+- `pipeline/open_pr.py`: pipeline helper that publishes pulled settings.
+- `templates/`: reusable Azure Pipelines templates.
+- `example/`: sample configuration and pipeline.
+- `wiki/`: setup, reference, and troubleshooting pages.
 
-The effective object fields are layered in this order:
+## Quick start
 
-1. Type defaults.
-2. Type default overrides for the selected environment.
-3. Object fields.
-4. Object overrides for the selected environment.
-
-Each layer replaces whole field values. An object can restrict its
-environments with the environments field.
-
-## Ad hoc use
-
-Set SPLUNK_STACK and ACS_TOKEN in the shell. Set SPLUNK_SEARCH_HEAD
-when the ACS endpoint is for a search head.
+From the tools repo, use the sample configuration to set the ACS endpoint and
+token, then run a read-only plan:
 
 ~~~sh
+cd example
 export SPLUNK_STACK="<stack>"
 export ACS_TOKEN="<acs-token>"
-python3 acs_config.py pull nonprod
-python3 acs_config.py plan nonprod
-python3 acs_config.py push nonprod
-python3 acs_config.py copy nonprod prod
-python3 acs_config.py doc
+python3 ../acs_config.py plan nonprod --dir .
 ~~~
 
-Use --dir to select another configuration directory. Use --types and
---names to limit a command. push --delete removes live-only objects.
+Set `SPLUNK_SEARCH_HEAD` when the ACS endpoint uses a search head. See the
+Commands page for filters, other actions, and environment variables.
 
 ## Pipeline
 
-The example pipeline uses the shared template. Pull requests always run a
-read-only plan. A pull updates the private configuration repository and opens
-a pull request. A push runs as a deployment to the selected environment.
-Configure approvals on the production environment.
-
-## Data boundaries
-
-The repository stores ACS settings as TOML. It never stores HEC token values,
-user records, or ACS tokens. Tokens come from environment variables at run
-time.
+The example pipeline uses the shared template. Pull requests run a read-only
+plan. A pull reads the selected environments and opens a pull request for file
+changes. A push runs as a deployment job on environment `splunk-<env>`, so any
+approval configured on that environment gates the deployment. Push runs only
+when the pipeline is manually queued with action `push`; nothing pushes on a
+commit or pull request.
 
 ## Wiki
 
 - [Wiki home](wiki/Home.md)
 - [Getting started](wiki/Getting-started.md)
+- [Reference](wiki/Reference.md)
 - [File format](wiki/Reference/File-format.md)
 - [Commands](wiki/Reference/Commands.md)
 - [Object types](wiki/Reference/Object-types.md)

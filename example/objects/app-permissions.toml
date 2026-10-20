@@ -1,0 +1,5 @@
+[default]
+
+[Splunk_TA_paloalto_networks]
+read = ["*"]
+write = ["sc_admin"]

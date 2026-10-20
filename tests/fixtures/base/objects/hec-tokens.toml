@@ -1,3 +1,5 @@
-name = "collector"
+[default]
+
+[collector]
 allowedIndexes = ["shared"]
 defaultIndex = "shared"

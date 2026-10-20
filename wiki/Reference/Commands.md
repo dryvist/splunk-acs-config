@@ -18,6 +18,19 @@ python acs_config.py doc [--dir D]
 An empty filter or all selects every type or name. The push --delete option
 allows live-only objects to be deleted. Review the plan before enabling it.
 
+## Pipeline parameters
+
+- Environment: all, or one name from environments.toml. Pull runs the
+  environments in turn, prod first. Push runs one deployment job per
+  environment.
+- Action: plan, pull, or push.
+- Object types: all, or space-separated from indexes hec-tokens ip-allowlists
+  ip-allowlists-v6 outbound-ports outbound-ports-v6 roles app-permissions.
+- Object names: all, or space-separated stanza names (index, token, feature,
+  port, role or app).
+- Delete: removes objects that exist only in the stack. Push only. Deleting an
+  index deletes its data.
+
 ## Environment variables
 
 - STACK_TOKEN is used when set; otherwise the tool uses ACS_TOKEN.

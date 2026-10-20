@@ -32,6 +32,8 @@
 1. Confirm `azure-pipelines.yml`, `environments.toml` and `objects/` appear
    on `main` in **Repos → Files**.
 2. Confirm `environments.toml` lists `nonprod` and `prod`.
+3. Open `objects/` and confirm it lists one `.toml` file for each object type,
+   for example `indexes.toml`.
 
 ## Related
 

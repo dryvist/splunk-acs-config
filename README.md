@@ -1,7 +1,8 @@
 # Splunk ACS configuration
 
-Store Splunk Cloud ACS settings in TOML files and use `acs_config.py` to pull,
-compare, push, copy, and document those settings through the ACS API.
+Store Splunk Cloud ACS settings in one TOML file per object type, with shared
+values in a `[default]` stanza. Use `acs_config.py` to pull, compare, push, copy,
+and document those settings through the ACS API.
 
 ## Repository contents
 

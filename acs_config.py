@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 import tomllib
 from urllib.error import HTTPError, URLError
@@ -42,6 +43,8 @@ TYPES = {
                    "selfStorageBucketPath", "splunkArchivalRetentionDays"),
         "patch_fields": ("maxDataSizeMB", "searchableDays", "selfStorageBucketPath",
                          "splunkArchivalRetentionDays"),
+        # ACS OpenAPI IndexInfo defaults.
+        "splunk_defaults": {"datatype": "event", "maxDataSizeMB": 0, "searchableDays": 90},
         "list": "/indexes", "items": ("indexes",), "paged": True,
         "post": "/indexes", "patch": "/indexes/{key}", "delete": "/indexes/{key}", "push": True,
     },
@@ -49,6 +52,8 @@ TYPES = {
         "key": "name",
         "fields": ("name", "_meta", "allowedIndexes", "defaultHost", "defaultIndex",
                    "defaultSource", "defaultSourcetype", "disabled", "useAck"),
+        # inputs.conf.spec [http://<name>], Splunk 10.6.
+        "splunk_defaults": {"disabled": False, "useAck": False},
         "list": "/inputs/http-event-collectors", "items": ("http_event_collectors",), "paged": True,
         "post": "/inputs/http-event-collectors", "patch": "/inputs/http-event-collectors/{key}",
         "delete": "/inputs/http-event-collectors/{key}", "push": True,
@@ -63,6 +68,9 @@ TYPES = {
                    "defaultApp", "importedRoles", "rtSrchJobsQuota", "srchDiskQuota", "srchFilter",
                    "srchIndexesAllowed", "srchIndexesDefault", "srchJobsQuota", "srchTimeEarliest",
                    "srchTimeWin"),
+        # authorize.conf [default], Splunk 10.6. The cumulative quotas are not in the ACS
+        # OpenAPI RolesInfo schema, so no default is set for them.
+        "splunk_defaults": {"srchDiskQuota": 100, "srchJobsQuota": 3, "rtSrchJobsQuota": 6},
         "list": "/roles", "items": ("roles",), "paged": True, "skip": BUILTIN_ROLES,
         "post": "/roles", "patch": "/roles/{key}", "delete": "/roles/{key}",
     },
@@ -166,14 +174,14 @@ def dump_toml(data):
     def write_table(table, path=()):
         scalars = [key for key, value in table.items() if not isinstance(value, dict)]
         children = [key for key, value in table.items() if isinstance(value, dict)]
-        if path and (scalars or not children):
+        if path and (scalars or not children or path == ("default",)):
             lines.extend([""] if lines else [])
             lines.append(f"[{'.'.join(map(toml_key, path))}]")
         first = next((key for key in ("name", "feature", "port")
                       if not path and key in scalars), None)
         keys = ([first] if first else []) + sorted(key for key in scalars if key != first)
         lines.extend(f"{toml_key(key)} = {toml_value(table[key])}" for key in keys)
-        for key in sorted(children):
+        for key in sorted(children, key=lambda key: (path == () and key != "default", key)):
             write_table(table[key], (*path, key))
 
     write_table(data)
@@ -205,25 +213,66 @@ def select_names(raw):
     return None if raw.strip() in ("", "all") else set(raw.split())
 
 
-def load_repo(root, t):
-    spec, repo = TYPES[t], {}
-    for path in sorted((root / "objects" / t).glob("*.toml")):
-        if path.name == "_defaults.toml":
-            continue
-        raw = read_toml(path)
-        if spec["key"] not in raw:
-            raise ACSConfigError(f"{path}: missing key field '{spec['key']}'")
+def split_table(path, envs, name, table):
+    fields, overrides = {}, {}
+    for field, value in table.items():
+        if not isinstance(value, dict):
+            fields[field] = value
+        elif field in envs:
+            overrides[field] = value
+        else:
+            table_name = f"{toml_key(name)}.{toml_key(field)}"
+            raise ACSConfigError(f"{path}: unknown environment table [{table_name}]")
+    if overrides:
+        fields["overrides"] = overrides
+    return fields
+
+
+def load_type(root, t, envs):
+    path = root / "objects" / f"{t}.toml"
+    data = read_toml(path, {})
+    spec, objects = TYPES[t], {}
+    defaults = data.pop("default", {})
+    if not isinstance(defaults, dict):
+        raise ACSConfigError(f"{path}: [default] must be a table")
+    defaults = split_table(path, envs, "default", defaults)
+    for name, table in data.items():
+        if not isinstance(table, dict):
+            raise ACSConfigError(f"{path}: stanza [{toml_key(name)}] must be a table")
+        if name in spec.get("skip", ()):
+            raise ACSConfigError(f"{path}: {name} is a built-in role and cannot be managed")
+        raw = split_table(path, envs, name, table)
+        if spec["key"] in raw:
+            raise ACSConfigError(f"{path}: [{toml_key(name)}] cannot contain key field '{spec['key']}'")
+        try:
+            raw[spec["key"]] = int(name) if spec["key"] == "port" else name
+        except ValueError:
+            raise ACSConfigError(f"{path}: invalid port stanza [{toml_key(name)}]") from None
         key = str(raw[spec["key"]])
-        if key in spec.get("skip", ()):
-            raise ACSConfigError(f"{path}: {key} is a built-in role and cannot be managed")
-        if key in repo:
+        if key in objects:
             raise ACSConfigError(f"{path}: duplicate {t} key {key}")
-        repo[key] = (path, raw)
-    return repo
+        objects[key] = raw
+    return defaults, objects
 
 
-def load_defaults(root, t):
-    return read_toml(root / "objects" / t / "_defaults.toml", {})
+def stanza(table, skip=()):
+    out = {field: value for field, value in table.items() if field not in skip and field != "overrides"}
+    out.update(table.get("overrides") or {})
+    return out
+
+
+def dump_type(t, defaults, objects):
+    data = {"default": stanza(defaults)}
+    for key, raw in sorted(objects.items()):
+        data[key] = stanza(raw, (TYPES[t]["key"],))
+    return dump_toml(data)
+
+
+def store_type(root, t, defaults, objects):
+    path = root / "objects" / f"{t}.toml"
+    if objects or defaults or path.exists():
+        return store(root, path, dump_type(t, defaults, objects))
+    return False
 
 
 def set_overrides(raw, overrides):
@@ -237,8 +286,9 @@ def in_env(raw, env):
     return "environments" not in raw or env in raw["environments"]
 
 
-def layers(defaults, raw, env, own_overrides=True):
-    out = [defaults, (defaults.get("overrides") or {}).get(env) or {}, raw]
+def layers(t, defaults, raw, env, own_overrides=True):
+    out = [TYPES[t].get("splunk_defaults", {}), defaults,
+           (defaults.get("overrides") or {}).get(env) or {}, raw]
     if own_overrides:
         out.append((raw.get("overrides") or {}).get(env) or {})
     return out
@@ -246,14 +296,14 @@ def layers(defaults, raw, env, own_overrides=True):
 
 def pushed(t, defaults, raw, env):
     flag = TYPES[t].get("push", False)
-    for layer in layers(defaults, raw, env):
+    for layer in layers(t, defaults, raw, env):
         flag = layer.get("push", flag)
     return flag
 
 
 def merged(t, defaults, raw, env, own_overrides=True):
     eff = {}
-    for layer in layers(defaults, raw, env, own_overrides):
+    for layer in layers(t, defaults, raw, env, own_overrides):
         eff.update({k: v for k, v in layer.items() if k not in META})
         for k in layer.get("unset", ()):
             eff.pop(k, None)
@@ -261,13 +311,6 @@ def merged(t, defaults, raw, env, own_overrides=True):
     if unknown:
         raise ACSConfigError(f"{t}: unknown field(s) {', '.join(unknown)}")
     return {k: v for k, v in eff.items() if v is not None}
-
-
-def repo_effective(root, t, env, names=None):
-    defaults = load_defaults(root, t)
-    return {key: merged(t, defaults, raw, env)
-            for key, (_, raw) in load_repo(root, t).items()
-            if (names is None or key in names) and in_env(raw, env)}
 
 
 def canon(value):
@@ -337,6 +380,8 @@ def live_objects(t, names=None):
     live = {}
     for record in records:
         key = str(record[key_field])
+        if key == "default":
+            raise ACSConfigError(f"{t}: live object 'default' is reserved")
         if key in spec.get("skip", ()) or (names is not None and key not in names):
             continue
         if spec.get("subnet") and not record.get("subnets"):
@@ -375,8 +420,8 @@ def key_changes(t, key, eff, live):
 
 def type_changes(root, env, t, names=None):
     """Plan only objects whose push flag is true; live-only objects follow the type's flag."""
-    defaults = load_defaults(root, t)
-    repo = {key: raw for key, (_, raw) in load_repo(root, t).items()
+    defaults, all_repo = load_type(root, t, load_environments(root))
+    repo = {key: raw for key, raw in all_repo.items()
             if (names is None or key in names) and in_env(raw, env)}
     managed = {key for key, raw in repo.items() if pushed(t, defaults, raw, env)}
     type_pushed = pushed(t, defaults, {}, env)
@@ -496,37 +541,65 @@ def pull_overrides(t, defaults, raw, env, live):
     set_overrides(raw, {e: v for e, v in {**overrides, env: current}.items() if v})
 
 
+def common_values(t, live):
+    key = TYPES[t]["key"]
+    values = {}
+    for field in TYPES[t]["fields"]:
+        if field == key:
+            continue
+        counts = Counter(json.dumps(canon(raw[field]), sort_keys=True)
+                         for raw in live.values() if field in raw)
+        if counts:
+            values[field] = json.loads(min(counts, key=lambda text: (-counts[text], text)))
+    return values
+
+
+def infer_defaults(t, defaults, env, live):
+    if TYPES[t].get("subnet"):
+        return
+    common = common_values(t, live)
+    builtins = TYPES[t].get("splunk_defaults", {})
+    if not any(field not in META for field in defaults):
+        defaults.update({f: v for f, v in common.items() if canon(v) != canon(builtins.get(f))})
+    overrides = dict(defaults.get("overrides") or {})
+    if env not in overrides:
+        base = merged(t, defaults, {}, env, own_overrides=False)
+        values = {f: v for f, v in common.items() if canon(v) != canon(base.get(f))}
+        if values:
+            overrides[env] = values
+            set_overrides(defaults, overrides)
+
+
 def pull_type(root, envs, env, t, names):
     spec = TYPES[t]
-    repo = load_repo(root, t)
-    defaults = load_defaults(root, t)
+    defaults, repo = load_type(root, t, envs)
     live = live_objects(t, names)
+    if names is None:
+        infer_defaults(t, defaults, env, live)
     keys = set(live) | {k for k in repo if names is None or k in names}
     for key in sorted(keys):
         if key in live:
-            if key not in repo:
+            raw = repo.get(key)
+            if raw is None:
                 fields = merged(t, defaults, {}, env)
                 raw = {"environments": [env]}
                 raw.update({f: v for f, v in live[key].items()
                             if f == spec["key"] or canon(v) != canon(fields.get(f))})
-                store(root, root / "objects" / t / (re.sub(r"[/:]", "_", key) + ".toml"),
-                      dump_toml(raw))
-            else:
-                path, raw = repo[key]
-                if "environments" in raw and env not in raw["environments"]:
-                    raw["environments"].append(env)
-                pull_overrides(t, defaults, raw, env, live[key])
-                store(root, path, dump_toml(raw))
+                repo[key] = raw
+            elif "environments" in raw and env not in raw["environments"]:
+                raw["environments"].append(env)
+            pull_overrides(t, defaults, raw, env, live[key])
+            if set(raw.get("environments", envs)) == set(envs):
+                raw.pop("environments", None)
         else:
-            path, raw = repo[key]
+            raw = repo[key]
             if in_env(raw, env):
                 remaining = [e for e in raw.get("environments", envs) if e != env]
                 if remaining:
                     raw["environments"] = remaining
-                    store(root, path, dump_toml(raw))
                 else:
-                    path.unlink()
-                    print(color_line(f"deleted {path.relative_to(root)}"))
+                    del repo[key]
+    store_type(root, t, defaults, repo)
 
 
 def pull_command(root, envs, env, types, names):
@@ -536,26 +609,29 @@ def pull_command(root, envs, env, types, names):
     write_doc(root)
 
 
+def copy_overrides(table, src, dst):
+    overrides = dict(table.get("overrides") or {})
+    if overrides.get(src):
+        overrides[dst] = overrides[src]
+    else:
+        overrides.pop(dst, None)
+    set_overrides(table, overrides)
+
+
 def copy_command(root, src, dst, types, names):
+    envs = load_environments(root)
     changed = False
     for t in types:
         print(pipeline_message("section", f"{t} (copy {src} to {dst})"))
-        for path in sorted((root / "objects" / t).glob("*.toml")):
-            raw = read_toml(path)
-            if path.name != "_defaults.toml":
-                if names is not None and str(raw[TYPES[t]["key"]]) not in names:
-                    continue
-                if not in_env(raw, src):
-                    continue
-                if "environments" in raw and dst not in raw["environments"]:
-                    raw["environments"].append(dst)
-            overrides = dict(raw.get("overrides") or {})
-            if overrides.get(src):
-                overrides[dst] = overrides[src]
-            else:
-                overrides.pop(dst, None)
-            set_overrides(raw, overrides)
-            changed = store(root, path, dump_toml(raw)) or changed
+        defaults, objects = load_type(root, t, envs)
+        copy_overrides(defaults, src, dst)
+        for key, raw in objects.items():
+            if (names is not None and key not in names) or not in_env(raw, src):
+                continue
+            if "environments" in raw and dst not in raw["environments"]:
+                raw["environments"].append(dst)
+            copy_overrides(raw, src, dst)
+        changed = store_type(root, t, defaults, objects) or changed
     if not changed:
         print("NO CHANGES")
 
@@ -570,28 +646,33 @@ def fmt(value):
     return (text or "(empty)").replace("|", "\\|")
 
 
+def default_lines(t, defaults):
+    lines = [f"- {field}: {fmt(value)} (Splunk default)"
+             for field, value in TYPES[t].get("splunk_defaults", {}).items()]
+    lines += [f"- {field}: {fmt(value)} ([default])" for field, value in defaults.items()
+              if field not in META]
+    for env, values in (defaults.get("overrides") or {}).items():
+        lines += [f"- {field}: {fmt(value)} ([default.{env}])" for field, value in values.items()
+                  if field not in META]
+    return lines or ["- none"]
+
+
 def write_doc(root):
     envs = load_environments(root)
     lines = ["# Splunk Cloud ACS configuration", "",
-             "Generated by `acs_config.py doc` from the files in `objects/`. "
-             "Values are effective per environment.", ""]
+             "Each file in `objects/` holds one object type. `[default]` holds shared values; "
+             "each stanza holds only what differs.", "",
+             "| Type | File | Pushed by default | " + " | ".join(envs) + " |",
+             "|" + " --- |" * (len(envs) + 3)]
+    sections = []
     for t in TYPES:
-        views = {e: repo_effective(root, t, e) if t in env_types(envs, e) else {} for e in envs}
-        lines += [f"## {t}", ""]
-        keys = sorted({k for view in views.values() for k in view})
-        if not keys:
-            lines += ["No objects.", ""]
-            continue
-        lines += ["| Object | Field | " + " | ".join(envs) + " |", "|" + " --- |" * (len(envs) + 2)]
-        for key in keys:
-            fields = sorted({f for view in views.values() if key in view for f in view[key]})
-            for f in fields:
-                cells = [fmt(views[e][key][f]) if f in views[e].get(key, {}) else "-" for e in envs]
-                bold = len(set(cells)) > 1
-                cells = [f"**{c}**" if bold and c != "-" else c for c in cells]
-                lines.append(f"| {key} | {f} | " + " | ".join(cells) + " |")
-        lines.append("")
-    store(root, root / "README.md", "\n".join(lines).rstrip() + "\n")
+        defaults, objects = load_type(root, t, envs)
+        counts = [str(sum(in_env(raw, env) for raw in objects.values()))
+                  if t in env_types(envs, env) else "-" for env in envs]
+        pushed_by_default = "yes" if pushed(t, defaults, {}, "") else "no"
+        lines.append(f"| {t} | `objects/{t}.toml` | {pushed_by_default} | " + " | ".join(counts) + " |")
+        sections += ["", f"## {t}", ""] + default_lines(t, defaults)
+    store(root, root / "README.md", "\n".join(lines + sections).rstrip() + "\n")
 
 
 def error(message):

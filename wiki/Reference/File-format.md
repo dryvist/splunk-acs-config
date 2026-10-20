@@ -8,14 +8,42 @@
 
 ~~~text
 environments.toml
-objects/<type>/_defaults.toml
-objects/<type>/<key>.toml
+objects/<type>.toml
 README.md
 ~~~
 
-Each object file is a TOML table. Its fields hold ACS writable values. The
-optional environments list limits that object to the named environments.
-Without the list, the object is included in every environment.
+Each object type is one file, for example `objects/indexes.toml`. The file reads
+like a Splunk `.conf` file. A `[default]` stanza comes first, then one stanza
+per object. Each stanza holds only the fields that differ from the layers above
+it.
+
+~~~toml
+[default]
+
+[default.nonprod]           # applies to every index in nonprod
+searchableDays = 30
+
+[aws]                       # empty stanza: uses every default
+
+[network]
+environments = ["prod"]     # absent = every environment
+
+[wineventlog]
+searchableDays = 180
+
+[wineventlog.nonprod]       # this object, this environment only
+searchableDays = 60
+unset = ["selfStorageBucketPath"]
+~~~
+
+The stanza name is the object key: the index name, HEC token name, allowlist
+feature, outbound port, role name, or app name. TOML quotes a name when it
+needs to, for example `["my.index"]`. The key is not repeated inside the
+stanza. The tool adds it when it reads the file, and it stores a port as a
+number.
+
+Comments starting with `#` are allowed. A pull rewrites the type files, so a
+comment is lost on the next pull.
 
 Each environment is a top-level table. An environment can limit its types:
 
@@ -28,23 +56,69 @@ Each environment is a top-level table. An environment can limit its types:
 types = ["roles", "app-permissions"]
 ~~~
 
-Comments starting with `#` are allowed. A pull rewrites object files, so a
-comment inside an object file is lost on the next pull.
+## Reserved names
+
+- `[default]` is reserved. An object named `default` is an error.
+- A sub-table under `[default]` or under an object is an environment override.
+  Its name must be listed in `environments.toml`. Any other name is an error that
+  names the file and the table, for example `[pan.staging]`.
+- A file whose `default` value is not a table is an error.
+
+## Built-in Splunk defaults
+
+The tool knows these defaults. They are the lowest layer, so a file shows only
+deviations from stock Splunk.
+
+| Type | Field | Value | Source |
+| --- | --- | --- | --- |
+| indexes | datatype | `"event"` | ACS OpenAPI `IndexInfo` |
+| indexes | maxDataSizeMB | `0` | ACS OpenAPI `IndexInfo` |
+| indexes | searchableDays | `90` | ACS OpenAPI `IndexInfo` |
+| hec-tokens | disabled | `false` | `inputs.conf.spec` `[http://<name>]`, Splunk 10.6 |
+| hec-tokens | useAck | `false` | `inputs.conf.spec` `useACK`, Splunk 10.6 |
+| roles | srchDiskQuota | `100` | `authorize.conf` `[default]`, Splunk 10.6 |
+| roles | srchJobsQuota | `3` | `authorize.conf` `[default]`, Splunk 10.6 |
+| roles | rtSrchJobsQuota | `6` | `authorize.conf` `[default]`, Splunk 10.6 |
+
+The cumulative role quotas are not in the ACS OpenAPI `RolesInfo` schema, so
+they have no built-in default. The OpenAPI schema is the source where it
+defines a default. Otherwise the source is the Splunk `.conf` specification
+files at version 10.6.
 
 ## Layering
 
-The effective fields for environment E are combined in this order:
+The effective fields for environment E are combined in this order. Each layer
+replaces the fields it sets from the layers before it:
 
-1. Type defaults from objects/`<type>`/_defaults.toml.
-2. Default overrides for E.
-3. The object's base fields.
-4. The object's overrides for E.
+1. The built-in Splunk defaults, and the type's push default.
+2. `[default]`.
+3. `[default.<E>]`.
+4. The object's stanza.
+5. `[<object>.<E>]`.
 
-Each layer replaces a whole field value. An `unset = ["field"]` list in an
-override removes those fields for that environment; a pull writes it when a
-field is set in the base but missing live. The object exists only in an
-environment allowed by its environments field. The environment's types list
-limits which object types are included.
+Each layer replaces a whole field value. An `unset = ["field"]` list in a layer
+removes that field for the environment. A pull writes it when a field is set in
+the base but missing live. The object exists only in the environments named by
+its `environments` field. The environment's `types` list limits which object
+types are included.
+
+## Defaults written by a pull
+
+A pull writes defaults only where none exist. It never changes a default that is
+already set, so hand-set defaults stay as written.
+
+- When `[default]` has no fields, each field is set to the most common live value
+  in that environment, where that value differs from the built-in Splunk default.
+  A tie goes to the value whose JSON text sorts first.
+- When `[default.<E>]` does not exist, it is added with each field whose most
+  common live value in E differs from the layers above it. Nothing is written when
+  no field differs.
+- A pull that selects objects with **Object names** writes no defaults.
+- The ip-allowlists and outbound-ports types never get inferred defaults.
+
+After the defaults, a pull writes each object's stanza with only the fields that
+differ from the layers above it. An object that exists in every environment has
+no `environments` line.
 
 ## Push scope
 
@@ -53,53 +127,24 @@ whose `push` flag is true. indexes and hec-tokens default to `push = true`; ever
 other type defaults to `push = false`, so settings that Splunk apps manage are
 documented but never written.
 
-Set `push` in `_defaults.toml` to change a whole type, or in one object file
-to change that object. Put the line above any `[overrides...]` table, or set
-it inside `[overrides.<env>]` for one environment. The last layer wins.
+Set `push` in `[default]` to change a whole type, or in one stanza to change
+that object. Set it in `[default.<E>]` or `[<object>.<E>]` to change one
+environment. The last layer wins.
 
 ~~~toml
-name = "pan_analyst"
+[pan_analyst]
 push = true
 ~~~
 
 ## Worked example
 
-The shipped example sets an indexes default of 90 searchable days, with 30 in
-nonprod.
+With the example above, the effective searchableDays values are:
 
-~~~toml
-datatype = "event"
-maxDataSizeMB = 0
-searchableDays = 90
-
-[overrides.nonprod]
-searchableDays = 30
-~~~
-
-The pan object sets no fields of its own, so it inherits the default.
-
-~~~toml
-name = "pan"
-~~~
-
-The wineventlog object replaces the default in both environments.
-
-~~~toml
-name = "wineventlog"
-searchableDays = 180
-~~~
-
-The effective searchableDays values are:
-
-- pan in nonprod: 30, from the default override.
-- pan in prod: 90, from the default.
-- wineventlog in both environments: 180, from the object.
-
-## File names
-
-The file name is the object's ACS key. A slash or colon in a key is replaced
-by an underscore in the file name. The key remains in TOML as name,
-feature, or port.
+- aws in nonprod: 30, from `[default.nonprod]`.
+- aws in prod: 90, from the built-in Splunk default.
+- wineventlog in prod: 180, from its stanza.
+- wineventlog in nonprod: 60, from `[wineventlog.nonprod]`.
+- network: set only in prod, because of its `environments` line.
 
 ## Related
 

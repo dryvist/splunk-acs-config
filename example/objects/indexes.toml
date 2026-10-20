@@ -1,0 +1,19 @@
+[default]
+
+[default.nonprod]
+searchableDays = 30
+
+[aws]
+
+[linux]
+
+[network]
+environments = ["prod"]
+
+[os_metrics]
+datatype = "metric"
+
+[pan]
+
+[wineventlog]
+searchableDays = 180

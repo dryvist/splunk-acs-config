@@ -1,0 +1,10 @@
+Import-this-repo
+Create-config-repo
+Configure-access
+Create-pipeline
+Grant-repository-permissions
+Add-build-validation
+Create-environments
+Pull-environments
+Merge-pull-requests
+Check-plan

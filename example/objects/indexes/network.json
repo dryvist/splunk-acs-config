@@ -1,0 +1,6 @@
+{
+  "environments": [
+    "prod"
+  ],
+  "name": "network"
+}

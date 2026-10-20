@@ -1,7 +1,5 @@
 [default]
-
-[default.nonprod]
-searchableDays = 30
+nonprod.searchableDays = 30
 
 [legacy]
 
@@ -12,6 +10,4 @@ environments = ["prod"]
 
 [shared]
 searchableDays = 180
-
-[shared.nonprod]
-searchableDays = 60
+nonprod.searchableDays = 60

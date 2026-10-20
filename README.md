@@ -38,8 +38,9 @@ environment variables.
 
 The example pipeline uses the shared template. Pull requests run a read-only
 plan. A pull reads the selected environments and opens a pull request for file
-changes. A push runs as a deployment job on environment `splunk-<env>`, so any
-approval configured on that environment gates the deployment. Push runs only
+changes. Push writes only indexes and HEC tokens, plus any object with
+`push = true`. A push runs as a deployment job on environment `splunk-<env>`,
+so any approval configured on that environment gates the deployment. Push runs only
 when the pipeline is manually queued with action `push`; nothing pushes on a
 commit or pull request.
 

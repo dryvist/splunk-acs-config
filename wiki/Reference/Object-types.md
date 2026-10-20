@@ -4,16 +4,20 @@
 
 [[_TOC_]]
 
-| Type | ACS resource |
-| --- | --- |
-| indexes | /indexes |
-| hec-tokens | /inputs/http-event-collectors |
-| ip-allowlists | `/access/<feature>/ipallowlists` |
-| ip-allowlists-v6 | `/access/<feature>/ipallowlists-v6` |
-| outbound-ports | /access/outbound-ports |
-| outbound-ports-v6 | /access/outbound-ports-v6 |
-| roles | /roles |
-| app-permissions | /permissions/apps |
+| Type | ACS resource | Pushed by default |
+| --- | --- | --- |
+| indexes | /indexes | yes |
+| hec-tokens | /inputs/http-event-collectors | yes |
+| ip-allowlists | `/access/<feature>/ipallowlists` | no |
+| ip-allowlists-v6 | `/access/<feature>/ipallowlists-v6` | no |
+| outbound-ports | /access/outbound-ports | no |
+| outbound-ports-v6 | /access/outbound-ports-v6 | no |
+| roles | /roles | no |
+| app-permissions | /permissions/apps | no |
+
+A type marked no is pulled and documented. Plan and push skip it unless an
+object or `_defaults.toml` sets `push = true`. See
+[File format](/Reference/File-format).
 
 ## File keys and stored data
 

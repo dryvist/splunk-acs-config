@@ -25,7 +25,7 @@ allows live-only objects to be deleted. Review the plan before enabling it.
 - SPLUNK_SEARCH_HEAD is optional and is ignored when empty or unresolved.
 
 The authorization token is sent in the ACS Bearer header. It belongs in a
-secret variable group or the local environment, not in a JSON file.
+secret variable group or the local environment, not in a TOML file.
 
 ## Pipeline actions
 

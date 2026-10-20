@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pull, plan, push, copy and document Splunk Cloud ACS settings stored as JSON files."""
+"""Pull, plan, push, copy and document Splunk Cloud ACS settings stored as TOML files."""
 
 import argparse
 import json
@@ -8,6 +8,7 @@ import re
 import sys
 import time
 from pathlib import Path
+import tomllib
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -116,10 +117,14 @@ def request(method, path, body=None):
     return (json.loads(text) if text.strip() else None), status
 
 
-def read_json(path, default=None):
+def read_toml(path, default=None):
     if not path.exists():
         return default
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        with path.open("rb") as file:
+            return tomllib.load(file)
+    except tomllib.TOMLDecodeError as err:
+        raise ACSConfigError(f"{path}: {err}") from None
 
 
 def store(root, path, text):
@@ -132,14 +137,44 @@ def store(root, path, text):
     return True
 
 
-def store_json(root, path, obj):
-    return store(root, path, json.dumps(obj, indent=2, sort_keys=True) + "\n")
+def toml_key(key):
+    return key if re.fullmatch(r"[A-Za-z0-9_-]+", key) else json.dumps(key)
+
+
+def toml_value(value):
+    if isinstance(value, (str, bool)):
+        return json.dumps(value)
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, list) and all(type(v) in (str, int) for v in value):
+        return "[" + ", ".join(toml_value(v) for v in value) + "]"
+    raise TypeError(f"unsupported TOML value: {value!r}")
+
+
+def dump_toml(data):
+    lines = []
+
+    def write_table(table, path=()):
+        scalars = [key for key, value in table.items() if not isinstance(value, dict)]
+        children = [key for key, value in table.items() if isinstance(value, dict)]
+        if path and (scalars or not children):
+            lines.extend([""] if lines else [])
+            lines.append(f"[{'.'.join(map(toml_key, path))}]")
+        first = next((key for key in ("name", "feature", "port")
+                      if not path and key in scalars), None)
+        keys = ([first] if first else []) + sorted(key for key in scalars if key != first)
+        lines.extend(f"{toml_key(key)} = {toml_value(table[key])}" for key in keys)
+        for key in sorted(children):
+            write_table(table[key], (*path, key))
+
+    write_table(data)
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def load_environments(root):
-    envs = read_json(root / "environments.json")
+    envs = read_toml(root / "environments.toml")
     if envs is None:
-        raise ACSConfigError(f"missing {root / 'environments.json'}")
+        raise ACSConfigError(f"missing {root / 'environments.toml'}")
     return envs
 
 
@@ -163,10 +198,10 @@ def select_names(raw):
 
 def load_repo(root, t):
     spec, repo = TYPES[t], {}
-    for path in sorted((root / "objects" / t).glob("*.json")):
-        if path.name == "_defaults.json":
+    for path in sorted((root / "objects" / t).glob("*.toml")):
+        if path.name == "_defaults.toml":
             continue
-        raw = read_json(path)
+        raw = read_toml(path)
         if spec["key"] not in raw:
             raise ACSConfigError(f"{path}: missing key field '{spec['key']}'")
         key = str(raw[spec["key"]])
@@ -179,7 +214,7 @@ def load_repo(root, t):
 
 
 def load_defaults(root, t):
-    return read_json(root / "objects" / t / "_defaults.json", {})
+    return read_toml(root / "objects" / t / "_defaults.toml", {})
 
 
 def set_overrides(raw, overrides):
@@ -441,20 +476,21 @@ def pull_type(root, envs, env, t, names):
                 raw = {"environments": [env]}
                 raw.update({f: v for f, v in live[key].items()
                             if f == spec["key"] or canon(v) != canon(fields.get(f))})
-                store_json(root, root / "objects" / t / (re.sub(r"[/:]", "_", key) + ".json"), raw)
+                store(root, root / "objects" / t / (re.sub(r"[/:]", "_", key) + ".toml"),
+                      dump_toml(raw))
             else:
                 path, raw = repo[key]
                 if "environments" in raw and env not in raw["environments"]:
                     raw["environments"].append(env)
                 pull_overrides(t, defaults, raw, env, live[key])
-                store_json(root, path, raw)
+                store(root, path, dump_toml(raw))
         else:
             path, raw = repo[key]
             if in_env(raw, env):
                 remaining = [e for e in raw.get("environments", envs) if e != env]
                 if remaining:
                     raw["environments"] = remaining
-                    store_json(root, path, raw)
+                    store(root, path, dump_toml(raw))
                 else:
                     path.unlink()
                     print(f"deleted {path.relative_to(root)}")
@@ -469,9 +505,9 @@ def pull_command(root, envs, env, types, names):
 def copy_command(root, src, dst, types, names):
     changed = False
     for t in types:
-        for path in sorted((root / "objects" / t).glob("*.json")):
-            raw = read_json(path)
-            if path.name != "_defaults.json":
+        for path in sorted((root / "objects" / t).glob("*.toml")):
+            raw = read_toml(path)
+            if path.name != "_defaults.toml":
                 if names is not None and str(raw[TYPES[t]["key"]]) not in names:
                     continue
                 if not in_env(raw, src):
@@ -484,7 +520,7 @@ def copy_command(root, src, dst, types, names):
             else:
                 overrides.pop(dst, None)
             set_overrides(raw, overrides)
-            changed = store_json(root, path, raw) or changed
+            changed = store(root, path, dump_toml(raw)) or changed
     if not changed:
         print("NO CHANGES")
 
@@ -534,7 +570,7 @@ def add_common(sub):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description="Sync Splunk Cloud ACS settings with JSON files.")
+    parser = argparse.ArgumentParser(description="Sync Splunk Cloud ACS settings with TOML files.")
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("pull", "plan"):
         sub = commands.add_parser(name)

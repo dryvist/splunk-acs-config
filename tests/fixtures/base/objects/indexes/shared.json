@@ -1,9 +1,0 @@
-{
-  "name": "shared",
-  "overrides": {
-    "nonprod": {
-      "searchableDays": 60
-    }
-  },
-  "searchableDays": 180
-}

@@ -20,7 +20,7 @@ For each selected object that the source environment includes:
 - The target's overrides are replaced by the source's overrides. When the
   source has none, the target's override is removed.
 
-Type defaults in _defaults.json are handled the same way.
+Type defaults in _defaults.toml are handled the same way.
 
 Use --types and --names to limit the objects. Use --dir when the config
 directory is not the current directory.

@@ -4,7 +4,7 @@
 
 [[_TOC_]]
 
-This repository provides a JSON file layout, a Python command-line tool, and
+This repository provides a TOML file layout, a Python command-line tool, and
 an Azure Pipelines template for managing Splunk Cloud ACS settings.
 
 | Section | What it covers |

@@ -126,7 +126,7 @@ class PullTests(ACSTestCase):
         spec = {"name": "newhec", "disabled": False, "useAck": False,
                 "defaultIndex": "shared", "token": "SECRET-VALUE"}
         fake = FakeACS({("GET", "/inputs/http-event-collectors"):
-                        {"http_event_collectors": [{"spec": spec, "token": "SECRET-VALUE"}]}})
+                        {"http-event-collectors": [{"spec": spec, "token": "SECRET-VALUE"}]}})
         code, out, err = self.run_cli(fake, "pull", "prod", "--types", "hec-tokens", "--names", "newhec")
         self.assertEqual(code, 0)
         self.assertEqual(self.read("objects/hec-tokens/newhec.json"),

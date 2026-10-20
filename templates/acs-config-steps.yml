@@ -34,6 +34,9 @@ steps:
       SPLUNK_SEARCH_HEAD: $(SPLUNK_SEARCH_HEAD)
       STACK_TOKEN: $(ACS_TOKEN)
   - ${{ if eq(parameters.action, 'pull') }}:
+      - script: python "$(Pipeline.Workspace)/tools/pipeline/open_pr.py" changes
+        displayName: Show ${{ parameters.env }} objects created, changed or deleted by this pull
+        workingDirectory: $(Pipeline.Workspace)/config
       - script: python "$(Pipeline.Workspace)/tools/pipeline/open_pr.py" publish ${{ parameters.env }}
         displayName: Publish ${{ parameters.env }} settings as a pull request
         workingDirectory: $(Pipeline.Workspace)/config

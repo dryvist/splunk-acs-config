@@ -7,7 +7,8 @@ and document those settings through the ACS API.
 ## Repository contents
 
 - `acs_config.py`: command-line tool for ACS settings.
-- `pipeline/`: pipeline helpers. `open_pr.py` publishes pulled settings as a
+- `pipeline/`: pipeline helpers. `open_pr.py` lists the objects each pull
+  created, changed or deleted, and publishes pulled settings as a
   pull request. `output.py` formats command output.
 - `templates/`: reusable Azure Pipelines templates.
 - `example/`: sample configuration and pipeline.

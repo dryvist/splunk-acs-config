@@ -4,9 +4,11 @@ import io
 import json
 import os
 import subprocess
+import tempfile
 import unittest
 import urllib.error
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from pipeline import open_pr
@@ -79,6 +81,30 @@ class OpenPrTests(unittest.TestCase):
         self.assertNotIn("push", [c[0] for c in calls])
         urlopen.assert_not_called()
         self.assertEqual(out, "NO DIFFERENCES in prod\n")
+
+    def test_changes_lists_objects_by_file(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {}, clear=True):
+            git = ["git", "-C", tmp, "-c", "user.name=t", "-c", "user.email=t@localhost"]
+            subprocess.run([*git, "init", "-q"], check=True)
+            objects = Path(tmp, "objects")
+            objects.mkdir()
+            (objects / "indexes.toml").write_text('[default]\nsearchableDays = 90\n\n[old]\n\n[pan]\nsearchableDays = 30\n')
+            (objects / "roles.toml").write_text("[analyst]\n")
+            subprocess.run([*git, "add", "-A"], check=True)
+            subprocess.run([*git, "commit", "-qm", "base"], check=True)
+            (objects / "indexes.toml").write_text('[default]\nsearchableDays = 90\n\n[new]\nnonprod.searchableDays = 7\n\n'
+                                                  '[pan]\nsearchableDays = 60\n')
+            out = io.StringIO()
+            cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                with redirect_stdout(out):
+                    open_pr.changes()
+            finally:
+                os.chdir(cwd)
+        self.assertIn("objects/indexes.toml (3 objects)\n"
+                      "created [new] 1 fields\ndeleted [old] 0 fields\nchanged [pan] 1 fields\n", out.getvalue())
+        self.assertNotIn("roles.toml", out.getvalue())
 
 
 if __name__ == "__main__":

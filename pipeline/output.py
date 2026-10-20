@@ -22,4 +22,4 @@ def color_line(line):
 def pipeline_message(level, message):
     if "TF_BUILD" in os.environ:
         return f"##[{level}]{message}"
-    return message if level == "section" else f"{level.upper()}: {message}"
+    return message if level in ("section", "group") else f"{level.upper()}: {message}"

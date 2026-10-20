@@ -196,6 +196,24 @@ class PullTests(ACSTestCase):
 
 
 class PlanTests(ACSTestCase):
+    def test_types_without_push_are_not_read(self):
+        code, out, _ = self.run_cli(FakeACS(), "plan", "prod", "--types", "roles app-permissions")
+        self.assertEqual(code, 0)
+        self.assertEqual(out.splitlines()[-1], "NO DIFFERENCES")
+
+    def test_object_push_flag_overrides_type_default(self):
+        (self.root / "objects/roles").mkdir()
+        (self.root / "objects/roles/analyst.toml").write_text('name = "analyst"\npush = true\n')
+        shared = self.root / "objects/indexes/shared.toml"
+        shared.write_text("push = false\n" + shared.read_text())
+        fake = FakeACS({("GET", "/roles"): {"roles": []},
+                        ("GET", "/indexes"): {"indexes": [index("shared", searchableDays=170)]}})
+        code, out, _ = self.run_cli(fake, "plan", "prod", "--types", "indexes roles",
+                                    "--names", "shared analyst")
+        self.assertEqual(code, 0)
+        self.assertIn("CREATE roles/analyst", out)
+        self.assertNotIn("indexes/shared", out)
+
     def test_plan_prints_one_line_per_change(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [
             index("shared", searchableDays=170), index("pan"), index("extra")]}})

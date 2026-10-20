@@ -18,7 +18,7 @@ from pipeline.output import color_line, pipeline_message
 PAGE_SIZE = 100
 POLL_INTERVAL = 10
 POLL_ATTEMPTS = 90  # 15 minutes at one poll per POLL_INTERVAL
-META = ("environments", "overrides", "unset")
+META = ("environments", "overrides", "unset", "push")
 FEATURES = ("s2s", "hec", "search-ui", "search-api", "idm-api", "idm-ui", "acs", "federated-search")
 # Built-in roles the tool never reads or writes.
 BUILTIN_ROLES = ("admin", "can_delete", "power", "sc_admin", "splunk-system-role", "user")
@@ -43,7 +43,7 @@ TYPES = {
         "patch_fields": ("maxDataSizeMB", "searchableDays", "selfStorageBucketPath",
                          "splunkArchivalRetentionDays"),
         "list": "/indexes", "items": ("indexes",), "paged": True,
-        "post": "/indexes", "patch": "/indexes/{key}", "delete": "/indexes/{key}",
+        "post": "/indexes", "patch": "/indexes/{key}", "delete": "/indexes/{key}", "push": True,
     },
     "hec-tokens": {
         "key": "name",
@@ -51,7 +51,7 @@ TYPES = {
                    "defaultSource", "defaultSourcetype", "disabled", "useAck"),
         "list": "/inputs/http-event-collectors", "items": ("http_event_collectors",), "paged": True,
         "post": "/inputs/http-event-collectors", "patch": "/inputs/http-event-collectors/{key}",
-        "delete": "/inputs/http-event-collectors/{key}",
+        "delete": "/inputs/http-event-collectors/{key}", "push": True,
     },
     "ip-allowlists": ip_type("ipallowlists"),
     "ip-allowlists-v6": ip_type("ipallowlists-v6"),
@@ -237,12 +237,23 @@ def in_env(raw, env):
     return "environments" not in raw or env in raw["environments"]
 
 
-def merged(t, defaults, raw, env, own_overrides=True):
-    layers = [defaults, (defaults.get("overrides") or {}).get(env) or {}, raw]
+def layers(defaults, raw, env, own_overrides=True):
+    out = [defaults, (defaults.get("overrides") or {}).get(env) or {}, raw]
     if own_overrides:
-        layers.append((raw.get("overrides") or {}).get(env) or {})
+        out.append((raw.get("overrides") or {}).get(env) or {})
+    return out
+
+
+def pushed(t, defaults, raw, env):
+    flag = TYPES[t].get("push", False)
+    for layer in layers(defaults, raw, env):
+        flag = layer.get("push", flag)
+    return flag
+
+
+def merged(t, defaults, raw, env, own_overrides=True):
     eff = {}
-    for layer in layers:
+    for layer in layers(defaults, raw, env, own_overrides):
         eff.update({k: v for k, v in layer.items() if k not in META})
         for k in layer.get("unset", ()):
             eff.pop(k, None)
@@ -363,12 +374,19 @@ def key_changes(t, key, eff, live):
 
 
 def type_changes(root, env, t, names=None):
-    effs = repo_effective(root, t, env, names)
+    """Plan only objects whose push flag is true; live-only objects follow the type's flag."""
+    defaults = load_defaults(root, t)
+    repo = {key: raw for key, (_, raw) in load_repo(root, t).items()
+            if (names is None or key in names) and in_env(raw, env)}
+    managed = {key for key, raw in repo.items() if pushed(t, defaults, raw, env)}
+    type_pushed = pushed(t, defaults, {}, env)
+    if not managed and not type_pushed:
+        return []
     live = live_objects(t, names)
-    changes = []
-    for key in sorted(set(effs) | set(live)):
-        changes += key_changes(t, key, effs.get(key), live.get(key))
-    return changes
+    keys = managed | ({k for k in live if k not in repo} if type_pushed else set())
+    return [c for key in sorted(keys)
+            for c in key_changes(t, key, merged(t, defaults, repo[key], env) if key in managed else None,
+                                 live.get(key))]
 
 
 def collect(root, env, types, names=None):

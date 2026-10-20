@@ -62,7 +62,7 @@ jobs:
                             delete: ${{ parameters.delete }}
           - ${{ else }}:
               - job: ${{ parameters.action }}_${{ replace(env, '-', '_') }}
-                displayName: ${{ parameters.action }} ${{ env }}
+                displayName: ${{ iif(eq(parameters.action, 'pull'), format('Pull {0}', env), format('Plan {0}', env)) }}
                 # Pull jobs run in reverse name order (prod before nonprod) on one shared branch.
                 ${{ if eq(parameters.action, 'pull') }}:
                   dependsOn:

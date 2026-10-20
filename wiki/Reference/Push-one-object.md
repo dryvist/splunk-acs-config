@@ -47,3 +47,8 @@ removed. Deleting an index deletes its data.
 
 - [Commands](/Reference/Commands)
 - [Copy between environments](/Reference/Copy-between-environments)
+
+---
+
+[< Previous: Copy between environments](/Reference/Copy-between-environments) |
+[Next: Troubleshooting >](/Troubleshooting)

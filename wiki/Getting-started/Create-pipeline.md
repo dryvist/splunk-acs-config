@@ -15,8 +15,9 @@
 5. Select the `main` branch.
 6. Select `/azure-pipelines.yml` as the path.
 7. Select **Continue**.
-8. Select the arrow next to **Run** and select **Save**.
-9. When the pipeline asks to permit the `tools` repository resource, select
+8. Select the arrow next to **Run**.
+9. Select **Save**.
+10. When the pipeline asks to permit the `tools` repository resource, select
    **Permit**.
 
 **Verify:**

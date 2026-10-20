@@ -11,16 +11,19 @@ the repository.
 
 ## Action
 
-Review the object and decide whether to pull it into the repository or remove
-it from ACS. Keep the default push behavior when the object should remain
-unmanaged.
+Review the object, then choose one:
 
-Use push --delete only after the plan confirms which live-only objects will be
-removed.
+- Pull it into the repository to keep it managed.
+- Push with the Delete live-only objects option (`--delete`) to remove it from
+  ACS. Run plan first to confirm which objects will be removed.
+
+A push without `--delete` does not remove the object. The push then fails with
+`N differences remain after push`.
 
 ## Verify
 
-Run plan again and confirm every ONLY LIVE line has an intentional outcome.
+Run plan again and confirm each ONLY LIVE line was pulled or removed as
+intended.
 
 ## Related
 

@@ -11,9 +11,9 @@ is not in objects/roles.
 
 ## Cause
 
-ACS does not allow built-in roles to be edited. The tool skips admin,
-can_delete, power, sc_admin, splunk-system-role, and user in plan output.
-It reports no change and no ONLY LIVE line for them.
+ACS does not allow built-in roles to be edited, so the tool skips them. It
+reports no change and no ONLY LIVE line for them. The skipped names are listed
+on [Object types](/Reference/Object-types).
 
 ## Verify
 

@@ -7,7 +7,8 @@
 ## HTTP 401
 
 Check that the ACS token is valid and intended for the ACS audience. Confirm
-the pipeline maps the token variable to ACS_TOKEN or STACK_TOKEN.
+the variable group defines `ACS_TOKEN`. The pipeline passes it to the tool as
+`STACK_TOKEN`.
 
 ## HTTP 403
 

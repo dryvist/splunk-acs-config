@@ -32,8 +32,9 @@ secret variable group or the local environment, not in a TOML file.
 - plan compares repository settings with live settings.
 - pull updates the files for an environment. The pipeline opens a pull request
   when files change.
-- push applies repository settings through a deployment job on its matching
-  environment.
+- push applies repository settings through a deployment job on environment
+  `splunk-<env>`. Any approval configured on that environment gates the job.
+  The example pipeline does not push on a commit or pull request.
 - copy sets the target environment overrides in the files to match the source,
   without calling ACS.
 - doc renders the configuration documentation.

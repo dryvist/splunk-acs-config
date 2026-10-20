@@ -1,0 +1,82 @@
+# Pull requests always run plan for every environment.
+parameters:
+  - name: pool
+    type: object
+    default:
+      vmImage: ubuntu-latest
+  - name: environments
+    type: object
+    default: []
+  - name: environment
+    type: string
+    default: all
+  - name: action
+    type: string
+    default: plan
+    values:
+      - plan
+      - pull
+      - push
+  - name: types
+    type: string
+    default: all
+  - name: names
+    type: string
+    default: all
+  - name: delete
+    type: boolean
+    default: false
+
+jobs:
+  - ${{ each env in parameters.environments }}:
+      - ${{ if in(parameters.environment, 'all', env) }}:
+          - ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
+              - job: plan_${{ replace(env, '-', '_') }}
+                displayName: Plan ${{ env }}
+                pool: ${{ parameters.pool }}
+                variables:
+                  - group: splunk-${{ env }}
+                steps:
+                  - template: acs-config-steps.yml
+                    parameters:
+                      env: ${{ env }}
+                      action: plan
+          - ${{ elseif eq(parameters.action, 'push') }}:
+              - deployment: push_${{ replace(env, '-', '_') }}
+                displayName: Push ${{ env }}
+                pool: ${{ parameters.pool }}
+                environment: splunk-${{ env }}
+                variables:
+                  - group: splunk-${{ env }}
+                strategy:
+                  runOnce:
+                    deploy:
+                      steps:
+                        - template: acs-config-steps.yml
+                          parameters:
+                            env: ${{ env }}
+                            action: push
+                            types: ${{ parameters.types }}
+                            names: ${{ parameters.names }}
+                            delete: ${{ parameters.delete }}
+          - ${{ elseif and(eq(parameters.action, 'pull'), eq(parameters.environment, 'all')) }}:
+              - job: pull_${{ replace(env, '-', '_') }}
+                displayName: Pull ${{ env }}
+                pool: ${{ parameters.pool }}
+                steps:
+                  - checkout: none
+                  - script: python -c "raise SystemExit('##[error]Pull one environment per run; set environment to ${{ env }}.')"
+                    displayName: Choose one environment for pull
+          - ${{ else }}:
+              - job: ${{ parameters.action }}_${{ replace(env, '-', '_') }}
+                displayName: ${{ parameters.action }} ${{ env }}
+                pool: ${{ parameters.pool }}
+                variables:
+                  - group: splunk-${{ env }}
+                steps:
+                  - template: acs-config-steps.yml
+                    parameters:
+                      env: ${{ env }}
+                      action: ${{ parameters.action }}
+                      types: ${{ parameters.types }}
+                      names: ${{ parameters.names }}

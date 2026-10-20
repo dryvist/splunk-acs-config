@@ -1,0 +1,10 @@
+{
+  "datatype": "event",
+  "maxDataSizeMB": 0,
+  "overrides": {
+    "nonprod": {
+      "searchableDays": 30
+    }
+  },
+  "searchableDays": 90
+}

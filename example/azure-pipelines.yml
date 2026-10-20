@@ -1,0 +1,49 @@
+# PR validation runs through a main-branch Build validation policy.
+trigger: none
+
+parameters:
+  - name: environment
+    displayName: Environment (all, or one name; pull takes one)
+    type: string
+    default: all
+  - name: action
+    displayName: Action
+    type: string
+    default: plan
+    values:
+      - plan
+      - pull
+      - push
+  - name: types
+    displayName: Object types
+    type: string
+    default: all
+  - name: names
+    displayName: Object names
+    type: string
+    default: all
+  - name: delete
+    displayName: Delete live-only objects
+    type: boolean
+    default: false
+
+resources:
+  repositories:
+    - repository: tools
+      type: git
+      name: splunk-acs-config
+
+extends:
+  template: templates/acs-config.yml@tools
+  parameters:
+    # Edit the environments to match environments.json.
+    environments:
+      - nonprod
+      - prod
+    environment: ${{ parameters.environment }}
+    action: ${{ parameters.action }}
+    types: ${{ parameters.types }}
+    names: ${{ parameters.names }}
+    delete: ${{ parameters.delete }}
+    pool:
+      name: <agent-pool>

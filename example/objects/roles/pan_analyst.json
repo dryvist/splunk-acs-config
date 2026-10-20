@@ -1,0 +1,12 @@
+{
+  "importedRoles": [
+    "user"
+  ],
+  "name": "pan_analyst",
+  "srchIndexesAllowed": [
+    "pan"
+  ],
+  "srchIndexesDefault": [
+    "pan"
+  ]
+}

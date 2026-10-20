@@ -443,6 +443,16 @@ class InferenceTests(ACSTestCase):
                 "plan", env, "--types", "indexes", "--names", "pan")
             self.assertEqual(out.splitlines()[-1], "NO DIFFERENCES")
 
+    def test_tie_writes_the_first_pulled_env_value_as_the_base(self):
+        (self.root / "objects/indexes.toml").write_text("[default]\nsearchableDays = 30\n\n[shared]\n",
+                                                         encoding="utf-8")
+        for env, days in (("prod", 90), ("nonprod", 60)):
+            fake = FakeACS({("GET", "/indexes"): {"indexes": [index("shared", searchableDays=days)]}})
+            code, _, _ = self.run_cli(fake, "pull", env, "--types", "indexes", "--names", "shared")
+            self.assertEqual(code, 0)
+        self.assertEqual(self.read("objects/indexes.toml")["shared"],
+                         {"searchableDays": 90, "nonprod": {"searchableDays": 60}})
+
     def test_missing_defaulted_field_in_both_environments_uses_base_unset(self):
         (self.root / "objects/indexes.toml").write_text(
             "[default]\nsearchableDays = 30\n\n[shared]\n"

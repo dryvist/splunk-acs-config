@@ -543,11 +543,14 @@ def compact(t, defaults, values, keep):
     for field in sorted(fields):
         want = {env: canon(value.get(field)) for env, value in values.items()}
         base_values = {env: canon(value.get(field)) for env, value in inherited.items()}
-        choices = [(sum(base_values[env] != want[env] for env in values), 1, "", False, None)]
+        # Ties keep a base line, then the value of the env pulled first (reverse name order).
+        order = sorted(values, reverse=True)
+        choices = [(sum(base_values[env] != want[env] for env in values), 1, 0, "", False, None)]
         distinct = {json.dumps(value, sort_keys=True): value for value in want.values()}
-        choices.extend((1 + sum(value != wanted for wanted in want.values()), 0, text, True, value)
+        choices.extend((1 + sum(value != wanted for wanted in want.values()), 0,
+                        min(i for i, env in enumerate(order) if want[env] == value), text, True, value)
                        for text, value in distinct.items())
-        _, _, _, set_base, base = min(choices)
+        *_, set_base, base = min(choices)
         result = {env: base for env in values} if set_base else base_values
         if set_base:
             if base is None:

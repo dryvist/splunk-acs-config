@@ -59,4 +59,5 @@ time.
 - [Commands](wiki/Reference/Commands.md)
 - [Object types](wiki/Reference/Object-types.md)
 - [Copy between environments](wiki/Reference/Copy-between-environments.md)
+- [Push one object](wiki/Reference/Push-one-object.md)
 - [Troubleshooting](wiki/Troubleshooting.md)

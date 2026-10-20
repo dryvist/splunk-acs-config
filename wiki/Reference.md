@@ -10,6 +10,7 @@
 | [Commands](/Reference/Commands) | CLI arguments and environment variables. |
 | [Object types](/Reference/Object-types) | ACS resources and stored fields. |
 | [Copy between environments](/Reference/Copy-between-environments) | Copying effective settings. |
+| [Push one object](/Reference/Push-one-object) | Applying one index, HEC token, allowlist, port, role or app. |
 
 ## Related
 

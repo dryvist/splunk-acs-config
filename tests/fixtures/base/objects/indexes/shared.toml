@@ -1,0 +1,5 @@
+name = "shared"
+searchableDays = 180
+
+[overrides.nonprod]
+searchableDays = 60

@@ -1,13 +1,13 @@
 # Splunk ACS configuration
 
-Keep Splunk Cloud ACS settings as JSON files in a private configuration
+Keep Splunk Cloud ACS settings as TOML files in a private configuration
 repository. Use the files as readable documentation, a backup, and a source
 for restoring or copying settings between environments.
 
 ## Files
 
-**environments.json** lists the environments. The objects directory contains
-one JSON file per ACS object and an optional **_defaults.json** for each type.
+**environments.toml** lists the environments. The objects directory contains
+one TOML file per ACS object and an optional **_defaults.toml** for each type.
 The **example/** directory contains a sample configuration and pipeline.
 
 The effective object fields are layered in this order:
@@ -47,7 +47,7 @@ Configure approvals on the production environment.
 
 ## Data boundaries
 
-The repository stores ACS settings as JSON. It never stores HEC token values,
+The repository stores ACS settings as TOML. It never stores HEC token values,
 user records, or ACS tokens. Tokens come from environment variables at run
 time.
 

@@ -1,8 +1,0 @@
-{
-  "allowedIndexes": [
-    "linux",
-    "os_metrics"
-  ],
-  "defaultIndex": "linux",
-  "name": "otel_collector"
-}

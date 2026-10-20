@@ -3,10 +3,10 @@
 import contextlib
 import copy
 import io
-import json
 import os
 import shutil
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -75,7 +75,23 @@ class ACSTestCase(unittest.TestCase):
         return code, out.getvalue(), err.getvalue()
 
     def read(self, rel):
-        return json.loads((self.root / rel).read_text(encoding="utf-8"))
+        return tomllib.loads((self.root / rel).read_text(encoding="utf-8"))
+
+
+class TomlTests(unittest.TestCase):
+    def test_writer_round_trips_objects_and_empty_environments(self):
+        obj = {"name": "sample", "enabled": True, "names": ["one", "two"],
+               "numbers": [1, 2], "overrides": {"nonprod": {"searchableDays": 30}}}
+        dumped = acs_config.dump_toml(obj)
+        self.assertTrue(dumped.startswith('name = "sample"\nenabled = true\nnames ='))
+        self.assertIn("\n\n[overrides.nonprod]\n", dumped)
+        self.assertNotIn("[overrides]\n", dumped)
+        self.assertEqual(tomllib.loads(dumped), obj)
+
+        envs = {"nonprod": {}, "prod": {"types": ["roles", "app-permissions"]}}
+        dumped = acs_config.dump_toml(envs)
+        self.assertIn("[nonprod]", dumped)
+        self.assertEqual(tomllib.loads(dumped), envs)
 
 
 class EffectiveTests(ACSTestCase):
@@ -100,27 +116,27 @@ class PullTests(ACSTestCase):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("newidx")]}})
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes", "--names", "newidx")
         self.assertEqual(code, 0)
-        self.assertEqual(self.read("objects/indexes/newidx.json"),
+        self.assertEqual(self.read("objects/indexes/newidx.toml"),
                          {"environments": ["prod"], "name": "newidx"})
 
     def test_changed_value_becomes_override(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("shared", searchableDays=200)]}})
         self.run_cli(fake, "pull", "prod", "--types", "indexes", "--names", "shared")
-        self.assertEqual(self.read("objects/indexes/shared.json"), {
+        self.assertEqual(self.read("objects/indexes/shared.toml"), {
             "name": "shared", "searchableDays": 180,
             "overrides": {"nonprod": {"searchableDays": 60}, "prod": {"searchableDays": 200}}})
 
     def test_equal_value_removes_override(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("shared", searchableDays=180)]}})
         self.run_cli(fake, "pull", "nonprod", "--types", "indexes", "--names", "shared")
-        self.assertEqual(self.read("objects/indexes/shared.json"),
+        self.assertEqual(self.read("objects/indexes/shared.toml"),
                          {"name": "shared", "searchableDays": 180})
 
     def test_missing_live_drops_env_and_expands_absent_list(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": []}})
         self.run_cli(fake, "pull", "prod", "--types", "indexes")
-        self.assertEqual(self.read("objects/indexes/legacy.json")["environments"], ["nonprod"])
-        self.assertFalse((self.root / "objects/indexes/retired.json").exists())
+        self.assertEqual(self.read("objects/indexes/legacy.toml")["environments"], ["nonprod"])
+        self.assertFalse((self.root / "objects/indexes/retired.toml").exists())
 
     def test_hec_token_is_never_written(self):
         spec = {"name": "newhec", "disabled": False, "useAck": False,
@@ -129,10 +145,10 @@ class PullTests(ACSTestCase):
                         {"http-event-collectors": [{"spec": spec, "token": "SECRET-VALUE"}]}})
         code, out, err = self.run_cli(fake, "pull", "prod", "--types", "hec-tokens", "--names", "newhec")
         self.assertEqual(code, 0)
-        self.assertEqual(self.read("objects/hec-tokens/newhec.json"),
+        self.assertEqual(self.read("objects/hec-tokens/newhec.toml"),
                          {"defaultIndex": "shared", "environments": ["prod"], "name": "newhec"})
         self.assertNotIn("SECRET-VALUE", out + err)
-        for path in self.root.rglob("*.json"):
+        for path in self.root.rglob("*.toml"):
             self.assertNotIn("SECRET-VALUE", path.read_text(encoding="utf-8"))
 
     def test_app_permissions_pull(self):
@@ -140,7 +156,7 @@ class PullTests(ACSTestCase):
                         {"apps": [{"name": "my_app", "perms": {"read": ["*"], "write": ["sc_admin"]}}]}})
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "app-permissions", "--names", "my_app")
         self.assertEqual(code, 0)
-        self.assertEqual(self.read("objects/app-permissions/my_app.json"),
+        self.assertEqual(self.read("objects/app-permissions/my_app.toml"),
                          {"environments": ["prod"], "name": "my_app", "read": ["*"], "write": ["sc_admin"]})
 
     def test_built_in_roles_are_skipped_and_imported_roles_mapped(self):
@@ -149,8 +165,8 @@ class PullTests(ACSTestCase):
             {"name": "pan_analyst", "imported": {"roles": ["user"]}, "srchIndexesAllowed": ["pan"]},
         ]}})
         self.run_cli(fake, "pull", "prod", "--types", "roles")
-        self.assertFalse((self.root / "objects/roles/admin.json").exists())
-        self.assertEqual(self.read("objects/roles/pan_analyst.json"), {
+        self.assertFalse((self.root / "objects/roles/admin.toml").exists())
+        self.assertEqual(self.read("objects/roles/pan_analyst.toml"), {
             "environments": ["prod"], "importedRoles": ["user"], "name": "pan_analyst",
             "srchIndexesAllowed": ["pan"]})
 
@@ -255,10 +271,10 @@ class CopyTests(ACSTestCase):
     def test_copy_prod_to_nonprod_edits_files_only(self):
         code, out, _ = self.run_cli(FakeACS(), "copy", "prod", "nonprod", "--types", "indexes")
         self.assertEqual(code, 0)
-        self.assertEqual(self.read("objects/indexes/shared.json"), {"name": "shared", "searchableDays": 180})
-        self.assertEqual(self.read("objects/indexes/retired.json")["environments"], ["prod", "nonprod"])
-        self.assertNotIn("overrides", self.read("objects/indexes/_defaults.json"))
-        self.assertIn("changed objects/indexes/retired.json", out)
+        self.assertEqual(self.read("objects/indexes/shared.toml"), {"name": "shared", "searchableDays": 180})
+        self.assertEqual(self.read("objects/indexes/retired.toml")["environments"], ["prod", "nonprod"])
+        self.assertNotIn("overrides", self.read("objects/indexes/_defaults.toml"))
+        self.assertIn("changed objects/indexes/retired.toml", out)
 
 
 class DocTests(ACSTestCase):
@@ -272,6 +288,15 @@ class DocTests(ACSTestCase):
 
 
 class CLITests(ACSTestCase):
+    def test_malformed_toml_is_one_error_line_with_file_name(self):
+        path = self.root / "objects/indexes/malformed.toml"
+        path.write_text('name = "malformed\n', encoding="utf-8")
+        code, _, err = self.run_cli(FakeACS(), "plan", "prod", "--types", "indexes")
+        self.assertEqual(code, 1)
+        self.assertEqual(err.count("\n"), 1)
+        self.assertIn(str(path), err)
+        self.assertNotIn("Traceback", err)
+
     def test_http_error_is_one_line_without_traceback(self):
         body = io.BytesIO(b'{"code": "forbidden", "message": "not allowed"}')
         error = HTTPError("https://example.invalid", 403, "Forbidden", {}, body)

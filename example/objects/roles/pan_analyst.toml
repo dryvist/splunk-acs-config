@@ -1,0 +1,4 @@
+name = "pan_analyst"
+importedRoles = ["user"]
+srchIndexesAllowed = ["pan"]
+srchIndexesDefault = ["pan"]

@@ -29,9 +29,9 @@
 
 **Verify:**
 
-1. Confirm `azure-pipelines.yml`, `environments.json` and `objects/` appear
+1. Confirm `azure-pipelines.yml`, `environments.toml` and `objects/` appear
    on `main` in **Repos → Files**.
-2. Confirm `environments.json` lists `nonprod` and `prod`.
+2. Confirm `environments.toml` lists `nonprod` and `prod`.
 
 ## Related
 

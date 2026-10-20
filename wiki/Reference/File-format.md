@@ -7,24 +7,35 @@
 ## Layout
 
 ~~~text
-environments.json
-objects/<type>/_defaults.json
-objects/<type>/<key>.json
+environments.toml
+objects/<type>/_defaults.toml
+objects/<type>/<key>.toml
 README.md
 ~~~
 
-Each object file is a JSON object. Its fields hold ACS writable values. The
+Each object file is a TOML table. Its fields hold ACS writable values. The
 optional environments list limits that object to the named environments.
 Without the list, the object is included in every environment.
 
-An environment can limit its types. For example, itsi-prod may set types to
-roles and app-permissions.
+Each environment is a top-level table. An environment can limit its types:
+
+~~~toml
+[nonprod]
+
+[prod]
+
+[itsi-prod]
+types = ["roles", "app-permissions"]
+~~~
+
+Comments starting with `#` are allowed. A pull rewrites object files, so a
+comment inside an object file is lost on the next pull.
 
 ## Layering
 
 The effective fields for environment E are combined in this order:
 
-1. Type defaults from objects/`<type>`/_defaults.json.
+1. Type defaults from objects/`<type>`/_defaults.toml.
 2. Default overrides for E.
 3. The object's base fields.
 4. The object's overrides for E.
@@ -38,34 +49,26 @@ limits which object types are included.
 The shipped example sets an indexes default of 90 searchable days, with 30 in
 nonprod.
 
-~~~json
-{
-  "datatype": "event",
-  "maxDataSizeMB": 0,
-  "overrides": {
-    "nonprod": {
-      "searchableDays": 30
-    }
-  },
-  "searchableDays": 90
-}
+~~~toml
+datatype = "event"
+maxDataSizeMB = 0
+searchableDays = 90
+
+[overrides.nonprod]
+searchableDays = 30
 ~~~
 
 The pan object sets no fields of its own, so it inherits the default.
 
-~~~json
-{
-  "name": "pan"
-}
+~~~toml
+name = "pan"
 ~~~
 
 The wineventlog object replaces the default in both environments.
 
-~~~json
-{
-  "name": "wineventlog",
-  "searchableDays": 180
-}
+~~~toml
+name = "wineventlog"
+searchableDays = 180
 ~~~
 
 The effective searchableDays values are:
@@ -77,7 +80,7 @@ The effective searchableDays values are:
 ## File names
 
 The file name is the object's ACS key. A slash or colon in a key is replaced
-by an underscore in the file name. The key remains in the JSON as name,
+by an underscore in the file name. The key remains in TOML as name,
 feature, or port.
 
 ## Related

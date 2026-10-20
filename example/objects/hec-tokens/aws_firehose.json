@@ -1,9 +1,0 @@
-{
-  "allowedIndexes": [
-    "aws"
-  ],
-  "defaultIndex": "aws",
-  "defaultSourcetype": "aws:firehose:json",
-  "name": "aws_firehose",
-  "useAck": true
-}

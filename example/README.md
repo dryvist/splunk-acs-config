@@ -18,7 +18,7 @@ Each file in `objects/` holds one object type. `[default]` holds shared values; 
 - datatype: event (Splunk default)
 - maxDataSizeMB: 0 (Splunk default)
 - searchableDays: 90 (Splunk default)
-- searchableDays: 30 ([default.nonprod])
+- searchableDays: 30 (nonprod, [default])
 
 ## hec-tokens
 

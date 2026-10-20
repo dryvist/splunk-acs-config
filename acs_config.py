@@ -168,21 +168,29 @@ def toml_value(value):
     raise ACSConfigError(f"unsupported TOML value: {value!r}")
 
 
-def dump_toml(data):
+def dump_toml(data, dotted=False):
     lines = []
 
     def write_table(table, path=()):
         scalars = [key for key, value in table.items() if not isinstance(value, dict)]
         children = [key for key, value in table.items() if isinstance(value, dict)]
-        if path and (scalars or not children or path == ("default",)):
+        stanza = dotted and len(path) == 1
+        if path and (scalars or not children or path == ("default",) or stanza):
             lines.extend([""] if lines else [])
             lines.append(f"[{'.'.join(map(toml_key, path))}]")
         first = next((key for key in ("name", "feature", "port")
                       if not path and key in scalars), None)
-        keys = ([first] if first else []) + sorted(key for key in scalars if key != first)
+        meta = [key for key in ("environments", "push", "unset") if key in scalars]
+        keys = ([first] if first else []) + meta + sorted(key for key in scalars
+                                                          if key != first and key not in meta)
         lines.extend(f"{toml_key(key)} = {toml_value(table[key])}" for key in keys)
-        for key in sorted(children, key=lambda key: (path == () and key != "default", key)):
-            write_table(table[key], (*path, key))
+        if stanza:
+            for env in sorted(children):
+                lines.extend(f"{toml_key(env)}.{toml_key(field)} = {toml_value(value)}"
+                             for field, value in sorted(table[env].items()))
+        else:
+            for key in sorted(children, key=lambda key: (path == () and key != "default", key)):
+                write_table(table[key], (*path, key))
 
     write_table(data)
     return "\n".join(lines).rstrip() + "\n"
@@ -265,7 +273,7 @@ def dump_type(t, defaults, objects):
     data = {"default": stanza(defaults)}
     for key, raw in sorted(objects.items()):
         data[key] = stanza(raw, (TYPES[t]["key"],))
-    return dump_toml(data)
+    return dump_toml(data, dotted=True)
 
 
 def store_type(root, t, defaults, objects):
@@ -523,22 +531,48 @@ def push_command(root, env, types, names, allow_delete):
     print(color_line("NO DIFFERENCES after push"))
 
 
-def pull_overrides(t, defaults, raw, env, live):
-    base = merged(t, defaults, raw, env, own_overrides=False)
-    overrides = dict(raw.get("overrides") or {})
-    current = dict(overrides.get(env) or {})
-    unset = set(current.pop("unset", []))
-    for f in TYPES[t]["patch_fields"]:
-        value = canon(live.get(f))
-        unset.discard(f)
-        current.pop(f, None)
-        if value is None and f in base:
-            unset.add(f)
-        elif value != canon(base.get(f)):
-            current[f] = value
+def compact(t, defaults, values, keep):
+    """Rebuild an object with the fewest lines that give each env its values; a tie keeps the base line."""
+    key = TYPES[t]["key"]
+    inherited = {env: merged(t, defaults, {}, env) for env in values}
+    fields = (set().union(*(value.keys() for value in values.values())) |
+              set().union(*(value.keys() for value in inherited.values()))) - {key}
+    out = {field: value for field, value in keep.items() if field != "overrides"}
+    overrides = {env: dict(value) for env, value in (keep.get("overrides") or {}).items()}
+    unset = set()
+    for field in sorted(fields):
+        want = {env: canon(value.get(field)) for env, value in values.items()}
+        base_values = {env: canon(value.get(field)) for env, value in inherited.items()}
+        # Ties keep a base line, then the value of the env pulled first (reverse name order).
+        order = sorted(values, reverse=True)
+        choices = [(sum(base_values[env] != want[env] for env in values), 1, 0, "", False, None)]
+        distinct = {json.dumps(value, sort_keys=True): value for value in want.values()}
+        choices.extend((1 + sum(value != wanted for wanted in want.values()), 0,
+                        min(i for i, env in enumerate(order) if want[env] == value), text, True, value)
+                       for text, value in distinct.items())
+        *_, set_base, base = min(choices)
+        result = {env: base for env in values} if set_base else base_values
+        if set_base:
+            if base is None:
+                unset.add(field)
+            else:
+                out[field] = base
+        for env in values:
+            if result[env] != want[env]:
+                override = overrides.setdefault(env, {})
+                if want[env] is None:
+                    override.setdefault("unset", []).append(field)
+                else:
+                    override[field] = want[env]
     if unset:
-        current["unset"] = sorted(unset)
-    set_overrides(raw, {e: v for e, v in {**overrides, env: current}.items() if v})
+        out["unset"] = sorted(unset)
+    for value in overrides.values():
+        if "unset" in value:
+            value["unset"] = sorted(set(value["unset"]))
+    overrides = {env: value for env, value in overrides.items() if value}
+    if overrides:
+        out["overrides"] = overrides
+    return out
 
 
 def common_values(t, live):
@@ -547,10 +581,11 @@ def common_values(t, live):
     for field in TYPES[t]["fields"]:
         if field == key:
             continue
-        counts = Counter(json.dumps(canon(raw[field]), sort_keys=True)
-                         for raw in live.values() if field in raw)
+        counts = Counter(json.dumps(canon(raw.get(field)), sort_keys=True) for raw in live.values())
         if counts:
-            values[field] = json.loads(min(counts, key=lambda text: (-counts[text], text)))
+            value = json.loads(min(counts, key=lambda text: (-counts[text], text)))
+            if value is not None:
+                values[field] = value
     return values
 
 
@@ -579,18 +614,31 @@ def pull_type(root, envs, env, t, names):
     keys = set(live) | {k for k in repo if names is None or k in names}
     for key in sorted(keys):
         if key in live:
-            raw = repo.get(key)
-            if raw is None:
-                fields = merged(t, defaults, {}, env)
-                raw = {"environments": [env]}
-                raw.update({f: v for f, v in live[key].items()
-                            if f == spec["key"] or canon(v) != canon(fields.get(f))})
-                repo[key] = raw
-            elif "environments" in raw and env not in raw["environments"]:
-                raw["environments"].append(env)
-            pull_overrides(t, defaults, raw, env, live[key])
-            if set(raw.get("environments", envs)) == set(envs):
+            existing = repo.get(key)
+            if existing is None:
+                object_envs = [env]
+            elif "environments" in existing:
+                object_envs = list(existing["environments"])
+                if env not in object_envs:
+                    object_envs.append(env)
+            else:
+                object_envs = list(envs)
+            values = {e: {f: v for f, v in merged(t, defaults, existing, e).items()
+                          if f != spec["key"]}
+                      for e in object_envs if e != env}
+            values[env] = {f: v for f, v in live[key].items() if f != spec["key"]}
+            keep = {f: existing[f] for f in ("push",) if existing and f in existing}
+            push_overrides = {e: {"push": value["push"]}
+                              for e, value in (existing.get("overrides") or {}).items()
+                              if "push" in value} if existing else {}
+            if push_overrides:
+                keep["overrides"] = push_overrides
+            raw = compact(t, defaults, values, keep)
+            if set(object_envs) == set(envs):
                 raw.pop("environments", None)
+            else:
+                raw["environments"] = object_envs
+            repo[key] = raw
         else:
             raw = repo[key]
             if in_env(raw, env):
@@ -652,7 +700,7 @@ def default_lines(t, defaults):
     lines += [f"- {field}: {fmt(value)} ([default])" for field, value in defaults.items()
               if field not in META]
     for env, values in (defaults.get("overrides") or {}).items():
-        lines += [f"- {field}: {fmt(value)} ([default.{env}])" for field, value in values.items()
+        lines += [f"- {field}: {fmt(value)} ({env}, [default])" for field, value in values.items()
                   if field not in META]
     return lines or ["- none"]
 

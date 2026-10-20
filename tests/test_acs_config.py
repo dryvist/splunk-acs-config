@@ -132,6 +132,16 @@ class PullTests(ACSTestCase):
         self.assertEqual(self.read("objects/indexes/shared.toml"),
                          {"name": "shared", "searchableDays": 180})
 
+    def test_field_missing_live_is_unset_for_that_env(self):
+        live = {k: v for k, v in index("shared").items() if k != "searchableDays"}
+        fake = FakeACS({("GET", "/indexes"): {"indexes": [live]}})
+        code, _, _ = self.run_cli(fake, "pull", "nonprod", "--types", "indexes", "--names", "shared")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.read("objects/indexes/shared.toml")["overrides"],
+                         {"nonprod": {"unset": ["searchableDays"]}})
+        _, out, _ = self.run_cli(fake, "plan", "nonprod", "--types", "indexes", "--names", "shared")
+        self.assertIn("NO DIFFERENCES", out)
+
     def test_missing_live_drops_env_and_expands_absent_list(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": []}})
         self.run_cli(fake, "pull", "prod", "--types", "indexes")

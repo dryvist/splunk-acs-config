@@ -16,7 +16,7 @@ from urllib.request import Request, urlopen
 PAGE_SIZE = 100
 POLL_INTERVAL = 10
 POLL_ATTEMPTS = 90  # 15 minutes at one poll per POLL_INTERVAL
-META = ("environments", "overrides")
+META = ("environments", "overrides", "unset")
 FEATURES = ("s2s", "hec", "search-ui", "search-api", "idm-api", "idm-ui", "acs", "federated-search")
 # The OpenAPI spec does not list the built-in roles, so this list is unconfirmed.
 BUILTIN_ROLES = ("admin", "can_delete", "power", "sc_admin", "splunk-system-role", "user")
@@ -235,6 +235,8 @@ def merged(t, defaults, raw, env, own_overrides=True):
     eff = {}
     for layer in layers:
         eff.update({k: v for k, v in layer.items() if k not in META})
+        for k in layer.get("unset", ()):
+            eff.pop(k, None)
     unknown = sorted(set(eff) - set(TYPES[t]["fields"]))
     if unknown:
         raise ACSConfigError(f"{t}: unknown field(s) {', '.join(unknown)}")
@@ -454,12 +456,17 @@ def pull_overrides(t, defaults, raw, env, live):
     base = merged(t, defaults, raw, env, own_overrides=False)
     overrides = dict(raw.get("overrides") or {})
     current = dict(overrides.get(env) or {})
+    unset = set(current.pop("unset", []))
     for f in TYPES[t]["patch_fields"]:
         value = canon(live.get(f))
-        if value == canon(base.get(f)):
-            current.pop(f, None)
-        else:
+        unset.discard(f)
+        current.pop(f, None)
+        if value is None and f in base:
+            unset.add(f)
+        elif value != canon(base.get(f)):
             current[f] = value
+    if unset:
+        current["unset"] = sorted(unset)
     set_overrides(raw, {e: v for e, v in {**overrides, env: current}.items() if v})
 
 

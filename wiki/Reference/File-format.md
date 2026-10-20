@@ -40,7 +40,9 @@ The effective fields for environment E are combined in this order:
 3. The object's base fields.
 4. The object's overrides for E.
 
-Each layer replaces a whole field value. The object exists only in an
+Each layer replaces a whole field value. An `unset = ["field"]` list in an
+override removes those fields for that environment; a pull writes it when a
+field is set in the base but missing live. The object exists only in an
 environment allowed by its environments field. The environment's types list
 limits which object types are included.
 

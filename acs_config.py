@@ -233,9 +233,11 @@ def response_items(data, wrapper):
     if isinstance(data, list):
         return data
     for key in wrapper:
-        if not isinstance(data, dict) or key not in data:
-            raise ACSConfigError(f"unexpected ACS response: no '{key}' list")
-        data = data[key]
+        found = [k for k in (key, key.replace("_", "-")) if isinstance(data, dict) and k in data]
+        if not found:
+            keys = ", ".join(data) if isinstance(data, dict) else type(data).__name__
+            raise ACSConfigError(f"unexpected ACS response: no '{key}' list (found: {keys})")
+        data = data[found[0]]
     return data or []
 
 

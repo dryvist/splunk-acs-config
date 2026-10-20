@@ -1,4 +1,8 @@
-"""Commit pulled ACS settings to a new branch and open an Azure Repos pull request."""
+"""Share one pull branch across a run's pull jobs and open its Azure Repos pull request.
+
+open_pr.py branch          check out acs-pull/<build id>, continuing it when an earlier job pushed it
+open_pr.py publish <env>   commit the pulled <env> settings, push the branch, and open the pull request once
+"""
 
 import json
 import os
@@ -15,21 +19,40 @@ def git(*args):
     ).stdout
 
 
-def open_pr(env):
-    if not git("status", "--porcelain").strip():
-        print("NO DIFFERENCES")
-        return
+def branch_name():
+    return f"acs-pull/{os.environ['BUILD_BUILDID']}"
+
+
+def remote_branch_exists():
+    return bool(git("ls-remote", "--heads", "origin", branch_name()).strip())
+
+
+def branch():
+    name = branch_name()
+    if remote_branch_exists():
+        git("fetch", "origin", name)
+        git("checkout", "-B", name, "FETCH_HEAD")
+        print(f"Continuing {name}")
+    else:
+        git("checkout", "-B", name)
+        print(f"Starting {name}")
+
+
+def publish(env):
+    if git("status", "--porcelain").strip():
+        git("add", "--all")
+        git("commit", "-m", f"Pull {env} ACS settings")
+        git("push", "origin", f"HEAD:refs/heads/{branch_name()}")
+    else:
+        print(f"NO DIFFERENCES in {env}")
+        if not remote_branch_exists():
+            return
     e = os.environ
-    branch = f"acs-pull/{env}-{e['BUILD_BUILDID']}"
-    git("checkout", "-b", branch)
-    git("add", "--all")
-    git("commit", "-m", f"Pull {env} ACS settings")
-    git("push", "origin", f"HEAD:refs/heads/{branch}")
     body = {
-        "sourceRefName": f"refs/heads/{branch}",
+        "sourceRefName": f"refs/heads/{branch_name()}",
         "targetRefName": "refs/heads/main",
-        "title": f"Pull {env} ACS settings",
-        "description": f"ACS settings pulled from {env} by build {e['BUILD_BUILDID']}.",
+        "title": f"Pull ACS settings (build {e['BUILD_BUILDID']})",
+        "description": f"ACS settings pulled by build {e['BUILD_BUILDID']}.",
     }
     request = urllib.request.Request(
         f"{e['SYSTEM_COLLECTIONURI']}{e['SYSTEM_TEAMPROJECTID']}/_apis/git/repositories/"
@@ -38,14 +61,23 @@ def open_pr(env):
         headers={"Authorization": f"Bearer {e['SYSTEM_ACCESSTOKEN']}", "Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=60) as response:
-        pr_id = json.loads(response.read())["pullRequestId"]
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            pr_id = json.loads(response.read())["pullRequestId"]
+    except urllib.error.HTTPError as error:
+        if error.code != 409:
+            raise
+        print(f"Pull request for {branch_name()} is already open")
+        return
     print(f"{e['SYSTEM_COLLECTIONURI']}{e['SYSTEM_TEAMPROJECT']}/_git/{e['BUILD_REPOSITORY_NAME']}/pullrequest/{pr_id}")
 
 
 if __name__ == "__main__":
     try:
-        open_pr(sys.argv[1])
+        if sys.argv[1:2] == ["branch"]:
+            branch()
+        else:
+            publish(sys.argv[2])
     except subprocess.CalledProcessError as error:
         sys.exit(f"##[error]{' '.join(error.cmd)} exited with code {error.returncode}: {error.stderr.strip()}")
     except urllib.error.HTTPError as error:

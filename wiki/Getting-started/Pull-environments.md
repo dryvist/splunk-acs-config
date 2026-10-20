@@ -9,7 +9,7 @@
 **Do:**
 
 1. Select **Run pipeline**.
-2. Type `nonprod` as **Environment**.
+2. Keep **Environment** as `all`.
 3. Select `pull` as **Action**.
 4. Keep **Object types** as `all`.
 5. Keep **Object names** as `all`.
@@ -17,13 +17,18 @@
 7. Select **Run**.
 8. Wait for the run to finish.
 
-A pull run takes one environment at a time. Pull `prod` only after the
-`nonprod` pull request is merged in the next step.
+With `all`, the run pulls environments in reverse name order, so `prod` runs
+before `nonprod`. Every environment commits to one branch,
+`acs-pull/<build id>`, with one pull request. The first environment pulled
+sets each object's base values; later environments add only their
+differences as overrides.
 
 **Verify:**
 
-1. Confirm the `pull nonprod live into repo` step succeeds.
-2. Confirm the pull request's source branch starts with `acs-pull/nonprod-`.
+1. Confirm the `pull prod live into repo` job finished before the
+   `pull nonprod live into repo` job started.
+2. Confirm the last step prints a pull request link, or `Pull request for
+   acs-pull/<build id> is already open`.
 3. Confirm a run with no changes prints `NO DIFFERENCES` and opens no pull
    request.
 4. Confirm no step in the run is a push step.

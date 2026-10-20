@@ -1,7 +1,5 @@
 [default]
-
-[default.nonprod]
-searchableDays = 30
+nonprod.searchableDays = 30
 
 [aws]
 

@@ -15,26 +15,28 @@ README.md
 Each object type is one file, for example `objects/indexes.toml`. The file reads
 like a Splunk `.conf` file. A `[default]` stanza comes first, then one stanza
 per object. Each stanza holds only the fields that differ from the layers above
-it.
+it. A line that starts with an environment name, such as
+`nonprod.searchableDays`, applies to that environment only.
 
 ~~~toml
 [default]
+nonprod.searchableDays = 30     # every index in nonprod
 
-[default.nonprod]           # applies to every index in nonprod
-searchableDays = 30
-
-[aws]                       # empty stanza: uses every default
+[aws]                           # empty stanza: uses every default
 
 [network]
-environments = ["prod"]     # absent = every environment
+environments = ["prod"]         # absent = every environment
 
 [wineventlog]
-searchableDays = 180
-
-[wineventlog.nonprod]       # this object, this environment only
-searchableDays = 60
-unset = ["selfStorageBucketPath"]
+searchableDays = 180            # every environment
+nonprod.searchableDays = 60     # this object, nonprod only
+nonprod.unset = ["selfStorageBucketPath"]
 ~~~
+
+A pull writes the fewest lines that give each environment its live values. A
+value shared by every environment of an object is written once, without an
+environment name. A field that most objects do not have never becomes a
+default.
 
 The stanza name is the object key: the index name, HEC token name, allowlist
 feature, outbound port, role name, or app name. TOML quotes a name when it
@@ -59,9 +61,11 @@ types = ["roles", "app-permissions"]
 ## Reserved names
 
 - `[default]` is reserved. An object named `default` is an error.
-- A sub-table under `[default]` or under an object is an environment override.
-  Its name must be listed in `environments.toml`. Any other name is an error that
-  names the file and the table, for example `[pan.staging]`.
+- A line such as `nonprod.searchableDays` under `[default]` or under an object
+  is an environment override. Its environment must be listed in
+  `environments.toml`. Any other name is an error that names the file and the
+  table, for example `pan.staging`. The older form, a separate
+  `[pan.nonprod]` table, still reads the same way.
 - A file whose `default` value is not a table is an error.
 
 ## Built-in Splunk defaults
@@ -140,10 +144,10 @@ push = true
 
 With the example above, the effective searchableDays values are:
 
-- aws in nonprod: 30, from `[default.nonprod]`.
+- aws in nonprod: 30, from `nonprod.searchableDays` in `[default]`.
 - aws in prod: 90, from the built-in Splunk default.
 - wineventlog in prod: 180, from its stanza.
-- wineventlog in nonprod: 60, from `[wineventlog.nonprod]`.
+- wineventlog in nonprod: 60, from `nonprod.searchableDays` in `[wineventlog]`.
 - network: set only in prod, because of its `environments` line.
 
 ## Related

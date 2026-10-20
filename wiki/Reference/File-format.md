@@ -46,6 +46,22 @@ field is set in the base but missing live. The object exists only in an
 environment allowed by its environments field. The environment's types list
 limits which object types are included.
 
+## Push scope
+
+Pull and doc read every type. Plan and push compare and write only objects
+whose `push` flag is true. indexes and hec-tokens default to `push = true`; every
+other type defaults to `push = false`, so settings that Splunk apps manage are
+documented but never written.
+
+Set `push` in `_defaults.toml` to change a whole type, or in one object file
+to change that object. Put the line above any `[overrides...]` table, or set
+it inside `[overrides.<env>]` for one environment. The last layer wins.
+
+~~~toml
+name = "pan_analyst"
+push = true
+~~~
+
 ## Worked example
 
 The shipped example sets an indexes default of 90 searchable days, with 30 in

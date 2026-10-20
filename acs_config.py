@@ -65,7 +65,7 @@ TYPES = {
     },
     "app-permissions": {
         "key": "name", "fields": ("name", "read", "write"), "patch_fields": ("read", "write"),
-        "list": "/permissions/apps", "items": ("tokeninfo", "apps"), "paged": True,
+        "list": "/permissions/apps", "items": ("apps",), "paged": True,
         "patch": "/permissions/apps/{key}",
     },
 }

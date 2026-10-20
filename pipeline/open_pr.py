@@ -11,6 +11,11 @@ import sys
 import urllib.error
 import urllib.request
 
+if __package__:
+    from .output import color_line, pipeline_message
+else:
+    from output import color_line, pipeline_message
+
 
 def git(*args):
     return subprocess.run(
@@ -44,7 +49,7 @@ def publish(env):
         git("commit", "-m", f"Pull {env} ACS settings")
         git("push", "origin", f"HEAD:refs/heads/{branch_name()}")
     else:
-        print(f"NO DIFFERENCES in {env}")
+        print(color_line(f"NO DIFFERENCES in {env}"))
         if not remote_branch_exists():
             return
     e = os.environ
@@ -67,6 +72,7 @@ def publish(env):
     except urllib.error.HTTPError as error:
         if error.code != 409:
             raise
+        error.close()
         print(f"Pull request for {branch_name()} is already open")
         return
     print(f"{e['SYSTEM_COLLECTIONURI']}{e['SYSTEM_TEAMPROJECT']}/_git/{e['BUILD_REPOSITORY_NAME']}/pullrequest/{pr_id}")
@@ -79,8 +85,11 @@ if __name__ == "__main__":
         else:
             publish(sys.argv[2])
     except subprocess.CalledProcessError as error:
-        sys.exit(f"##[error]{' '.join(error.cmd)} exited with code {error.returncode}: {error.stderr.strip()}")
+        message = f"{' '.join(error.cmd)} exited with code {error.returncode}: {error.stderr.strip()}"
+        sys.exit(color_line(pipeline_message("error", message)))
     except urllib.error.HTTPError as error:
-        sys.exit(f"##[error]HTTP {error.code} from {error.url}: {error.read().decode(errors='replace')}")
+        message = f"HTTP {error.code} from {error.url}: {error.read().decode(errors='replace')}"
+        error.close()
+        sys.exit(color_line(pipeline_message("error", message)))
     except KeyError as error:
-        sys.exit(f"##[error]Missing pipeline variable {error}")
+        sys.exit(color_line(pipeline_message("error", f"Missing pipeline variable {error}")))

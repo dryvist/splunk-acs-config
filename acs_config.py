@@ -13,6 +13,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from pipeline.output import color_line, pipeline_message
+
 PAGE_SIZE = 100
 POLL_INTERVAL = 10
 POLL_ATTEMPTS = 90  # 15 minutes at one poll per POLL_INTERVAL
@@ -114,7 +116,13 @@ def request(method, path, body=None):
         raise ACSConfigError(f"HTTP {err.code} {method} {url}: {message}") from None
     except URLError as err:
         raise ACSConfigError(f"{method} {url}: {err.reason}") from None
-    return (json.loads(text) if text.strip() else None), status
+    except UnicodeDecodeError as err:
+        raise ACSConfigError(f"invalid UTF-8 response from {method} {url}: {err}") from None
+    try:
+        data = json.loads(text) if text.strip() else None
+    except json.JSONDecodeError as err:
+        raise ACSConfigError(f"invalid JSON from {method} {url}: {err}") from None
+    return data, status
 
 
 def read_toml(path, default=None):
@@ -123,7 +131,7 @@ def read_toml(path, default=None):
     try:
         with path.open("rb") as file:
             return tomllib.load(file)
-    except tomllib.TOMLDecodeError as err:
+    except (tomllib.TOMLDecodeError, UnicodeDecodeError) as err:
         raise ACSConfigError(f"{path}: {err}") from None
 
 
@@ -133,7 +141,7 @@ def store(root, path, text):
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
-    print(f"{'changed' if old is not None else 'created'} {path.relative_to(root)}")
+    print(color_line(f"{'changed' if old is not None else 'created'} {path.relative_to(root)}"))
     return True
 
 
@@ -148,7 +156,7 @@ def toml_value(value):
         return str(value)
     if isinstance(value, list) and all(type(v) in (str, int) for v in value):
         return "[" + ", ".join(toml_value(v) for v in value) + "]"
-    raise TypeError(f"unsupported TOML value: {value!r}")
+    raise ACSConfigError(f"unsupported TOML value: {value!r}")
 
 
 def dump_toml(data):
@@ -303,8 +311,8 @@ def live_objects(t, names=None):
                 try:
                     data, _ = request("GET", path_for(spec["list"], feature))
                 except ACSConfigError as err:
-                    print(f"{'##[warning]' if os.environ.get('TF_BUILD') else 'WARNING: '}"
-                          f"skipped {t}/{feature}: {err}")
+                    message = pipeline_message("warning", f"skipped {t}/{feature}: {err}")
+                    print(color_line(message))
                     continue
                 records.append({key_field: feature,
                                 "subnets": canon(response_items(data, spec["items"]))})
@@ -385,12 +393,12 @@ def describe(c):
 
 def show(changes, types):
     for t in types:
-        print(f"##[section]{t}" if os.environ.get("TF_BUILD") else t)
+        print(pipeline_message("section", t))
         for c in changes:
             if c["type"] == t:
                 for line in describe(c):
-                    print(line)
-    print("NO DIFFERENCES" if not changes else f"{len(changes)} change(s)")
+                    print(color_line(line))
+    print(color_line("NO DIFFERENCES" if not changes else f"{len(changes)} change(s)"))
 
 
 def applicable(c, allow_delete):
@@ -420,9 +428,9 @@ def apply_change(c):
     if op == "ADD":
         return request("POST", path_for(spec["post"], key), add_body(t, key, c))[1]
     if op == "ONLY LIVE" and t == "indexes":
-        print(f"DATA LOSS: deleting index {key} removes all of its data")
+        print(color_line(f"DATA LOSS: deleting index {key} removes all of its data"))
     detail = f" subnets: {', '.join(c['subnets'])}" if "subnets" in c else ""
-    print(f"DELETE {t}/{key}{detail}")
+    print(color_line(f"DELETE {t}/{key}{detail}"))
     body = {"subnets": c["subnets"]} if "subnets" in c else None
     return request("DELETE", path_for(spec["delete"], key), body)[1]
 
@@ -500,7 +508,7 @@ def pull_type(root, envs, env, t, names):
                     store(root, path, dump_toml(raw))
                 else:
                     path.unlink()
-                    print(f"deleted {path.relative_to(root)}")
+                    print(color_line(f"deleted {path.relative_to(root)}"))
 
 
 def pull_command(root, envs, env, types, names):
@@ -567,7 +575,7 @@ def write_doc(root):
 
 
 def error(message):
-    print(f"##[error]{message}" if os.environ.get("TF_BUILD") else f"ERROR: {message}", file=sys.stderr)
+    print(color_line(pipeline_message("error", message)), file=sys.stderr)
 
 
 def add_common(sub):
@@ -617,7 +625,7 @@ def main(argv=None):
             plan_command(root, args.env, types, names)
         else:
             push_command(root, args.env, types, names, args.delete)
-    except (ACSConfigError, OSError, ValueError, KeyError, TypeError) as err:
+    except (ACSConfigError, OSError) as err:
         error(str(err))
         return 1
     return 0

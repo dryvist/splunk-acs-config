@@ -79,6 +79,10 @@ class ACSTestCase(unittest.TestCase):
 
 
 class TomlTests(unittest.TestCase):
+    def test_writer_rejects_unsupported_values_as_config_errors(self):
+        with self.assertRaisesRegex(acs_config.ACSConfigError, "unsupported TOML value"):
+            acs_config.dump_toml({"unsupported": 1.5})
+
     def test_writer_round_trips_objects_and_empty_environments(self):
         obj = {"name": "sample", "enabled": True, "names": ["one", "two"],
                "numbers": [1, 2], "overrides": {"nonprod": {"searchableDays": 30}}}
@@ -112,6 +116,16 @@ class EffectiveTests(ACSTestCase):
 
 
 class PullTests(ACSTestCase):
+    def test_pull_colors_created_changed_and_deleted_paths_in_pipeline(self):
+        fake = FakeACS({("GET", "/indexes"): {"indexes": [index("new"), index("pan", searchableDays=200)]}})
+        with mock.patch.dict(os.environ, {"TF_BUILD": "True"}):
+            code, out, _ = self.run_cli(
+                fake, "pull", "prod", "--types", "indexes", "--names", "new pan retired")
+        self.assertEqual(code, 0)
+        self.assertIn("\033[32mcreated objects/indexes/new.toml\033[0m", out)
+        self.assertIn("\033[33mchanged objects/indexes/pan.toml\033[0m", out)
+        self.assertIn("\033[31mdeleted objects/indexes/retired.toml\033[0m", out)
+
     def test_new_object_keeps_only_differences_from_defaults(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("newidx")]}})
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes", "--names", "newidx")
@@ -318,11 +332,85 @@ class CLITests(ACSTestCase):
         self.assertIn("not allowed", err)
         self.assertNotIn("Traceback", err)
 
+    def test_invalid_api_json_is_one_error_line_without_traceback(self):
+        response = mock.MagicMock()
+        response.status = 200
+        response.read.return_value = b"not JSON"
+        response.__enter__.return_value = response
+        with mock.patch.object(acs_config, "urlopen", return_value=response):
+            code, _, err = self.run_cli(acs_config.request, "plan", "prod", "--types", "indexes")
+        self.assertEqual(code, 1)
+        self.assertEqual(err.count("\n"), 1)
+        self.assertIn("invalid JSON from GET", err)
+        self.assertNotIn("Traceback", err)
+
+    def test_invalid_api_utf8_is_one_error_line_without_traceback(self):
+        response = mock.MagicMock()
+        response.status = 200
+        response.read.return_value = b"\xff"
+        response.__enter__.return_value = response
+        with mock.patch.object(acs_config, "urlopen", return_value=response):
+            code, _, err = self.run_cli(acs_config.request, "plan", "prod", "--types", "indexes")
+        self.assertEqual(code, 1)
+        self.assertEqual(err.count("\n"), 1)
+        self.assertIn("invalid UTF-8 response from GET", err)
+        self.assertNotIn("Traceback", err)
+
+    def test_invalid_utf8_toml_is_one_error_line_without_traceback(self):
+        path = self.root / "objects/indexes/malformed.toml"
+        path.write_bytes(b"\xff")
+        code, _, err = self.run_cli(FakeACS(), "plan", "prod", "--types", "indexes")
+        self.assertEqual(code, 1)
+        self.assertEqual(err.count("\n"), 1)
+        self.assertIn(str(path), err)
+        self.assertNotIn("Traceback", err)
+
     def test_missing_stack_variable_is_one_line(self):
         with mock.patch.dict(os.environ, {"STACK_TOKEN": "x"}, clear=True):
             code, _, err = self.run_cli(acs_config.request, "plan", "prod", "--types", "indexes")
         self.assertEqual(code, 1)
         self.assertEqual(err, "ERROR: SPLUNK_STACK is not set\n")
+
+
+class OutputTests(unittest.TestCase):
+    def test_result_colors(self):
+        cases = {
+            "CREATE indexes/pan": "32",
+            "ADD SUBNETS ip-allowlists/hec": "32",
+            "NO DIFFERENCES": "32",
+            "NO DIFFERENCES after push": "32",
+            "UPDATE indexes/pan searchableDays": "33",
+            "changed objects/indexes/pan.toml": "33",
+            "REMOVE SUBNETS ip-allowlists/hec": "31",
+            "DELETE indexes/old": "31",
+            "ONLY LIVE indexes/extra": "31",
+            "deleted objects/indexes/old.toml": "31",
+            "DATA LOSS: deleting index old": "31",
+            "ERROR: failed": "31",
+            "##[error]failed": "31",
+        }
+        with mock.patch.dict(os.environ, {"TF_BUILD": "true"}):
+            for line, color in cases.items():
+                with self.subTest(line=line):
+                    self.assertEqual(acs_config.color_line(line), f"\033[{color}m{line}\033[0m")
+
+    def test_colors_require_pipeline_or_terminal(self):
+        line = "CREATE indexes/pan"
+        stdout = mock.Mock(isatty=mock.Mock(return_value=False))
+        with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(acs_config.sys, "stdout", stdout):
+            self.assertEqual(acs_config.color_line(line), line)
+            stdout.isatty.return_value = True
+            self.assertEqual(acs_config.color_line(line), f"\033[32m{line}\033[0m")
+
+    def test_pipeline_message_prefixes(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(acs_config.pipeline_message("error", "failed"), "ERROR: failed")
+            self.assertEqual(acs_config.pipeline_message("warning", "skipped"), "WARNING: skipped")
+            self.assertEqual(acs_config.pipeline_message("section", "indexes"), "indexes")
+        with mock.patch.dict(os.environ, {"TF_BUILD": "true"}):
+            self.assertEqual(acs_config.pipeline_message("error", "failed"), "##[error]failed")
+            self.assertEqual(acs_config.pipeline_message("warning", "skipped"), "##[warning]skipped")
+            self.assertEqual(acs_config.pipeline_message("section", "indexes"), "##[section]indexes")
 
 
 if __name__ == "__main__":

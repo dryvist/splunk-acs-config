@@ -135,6 +135,14 @@ class PullTests(ACSTestCase):
         for path in self.root.rglob("*.json"):
             self.assertNotIn("SECRET-VALUE", path.read_text(encoding="utf-8"))
 
+    def test_app_permissions_pull(self):
+        fake = FakeACS({("GET", "/permissions/apps"):
+                        {"apps": [{"name": "my_app", "perms": {"read": ["*"], "write": ["sc_admin"]}}]}})
+        code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "app-permissions", "--names", "my_app")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.read("objects/app-permissions/my_app.json"),
+                         {"environments": ["prod"], "name": "my_app", "read": ["*"], "write": ["sc_admin"]})
+
     def test_built_in_roles_are_skipped_and_imported_roles_mapped(self):
         fake = FakeACS({("GET", "/roles"): {"roles": [
             {"name": "admin", "capabilities": ["admin_all_objects"]},

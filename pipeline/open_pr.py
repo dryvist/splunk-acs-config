@@ -78,6 +78,10 @@ def publish(env):
     print(f"{e['SYSTEM_COLLECTIONURI']}{e['SYSTEM_TEAMPROJECT']}/_git/{e['BUILD_REPOSITORY_NAME']}/pullrequest/{pr_id}")
 
 
+def fail(message):
+    sys.exit(color_line(pipeline_message("error", message)))
+
+
 if __name__ == "__main__":
     try:
         if sys.argv[1:2] == ["branch"]:
@@ -85,11 +89,10 @@ if __name__ == "__main__":
         else:
             publish(sys.argv[2])
     except subprocess.CalledProcessError as error:
-        message = f"{' '.join(error.cmd)} exited with code {error.returncode}: {error.stderr.strip()}"
-        sys.exit(color_line(pipeline_message("error", message)))
+        fail(f"{' '.join(error.cmd)} exited with code {error.returncode}: {error.stderr.strip()}")
     except urllib.error.HTTPError as error:
         message = f"HTTP {error.code} from {error.url}: {error.read().decode(errors='replace')}"
         error.close()
-        sys.exit(color_line(pipeline_message("error", message)))
+        fail(message)
     except KeyError as error:
-        sys.exit(color_line(pipeline_message("error", f"Missing pipeline variable {error}")))
+        fail(f"Missing pipeline variable {error}")

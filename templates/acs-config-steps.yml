@@ -35,7 +35,7 @@ steps:
       STACK_TOKEN: $(ACS_TOKEN)
   - ${{ if eq(parameters.action, 'pull') }}:
       - script: python "$(Pipeline.Workspace)/tools/pipeline/open_pr.py" publish ${{ parameters.env }}
-        displayName: Push the ${{ parameters.env }} settings and open the pull request
+        displayName: Publish ${{ parameters.env }} settings as a pull request
         workingDirectory: $(Pipeline.Workspace)/config
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)

@@ -20,7 +20,7 @@ POLL_INTERVAL = 10
 POLL_ATTEMPTS = 90  # 15 minutes at one poll per POLL_INTERVAL
 META = ("environments", "overrides", "unset")
 FEATURES = ("s2s", "hec", "search-ui", "search-api", "idm-api", "idm-ui", "acs", "federated-search")
-# The OpenAPI spec does not list the built-in roles, so this list is unconfirmed.
+# Built-in roles the tool never reads or writes.
 BUILTIN_ROLES = ("admin", "can_delete", "power", "sc_admin", "splunk-system-role", "user")
 
 def ip_type(feature_list):
@@ -113,6 +113,7 @@ def request(method, path, body=None):
             message = json.loads(err.read()).get("message") or message
         except (ValueError, AttributeError):
             pass
+        err.close()
         raise ACSConfigError(f"HTTP {err.code} {method} {url}: {message}") from None
     except URLError as err:
         raise ACSConfigError(f"{method} {url}: {err.reason}") from None
@@ -311,8 +312,7 @@ def live_objects(t, names=None):
                 try:
                     data, _ = request("GET", path_for(spec["list"], feature))
                 except ACSConfigError as err:
-                    message = pipeline_message("warning", f"skipped {t}/{feature}: {err}")
-                    print(color_line(message))
+                    warning(f"skipped {t}/{feature}: {err}")
                     continue
                 records.append({key_field: feature,
                                 "subnets": canon(response_items(data, spec["items"]))})
@@ -391,9 +391,9 @@ def describe(c):
     return [f"MISSING {name}: ACS has no create for this type"]
 
 
-def show(changes, types):
+def show(changes, types, env):
     for t in types:
-        print(pipeline_message("section", t))
+        print(pipeline_message("section", f"{t} (repo vs {env} live)"))
         for c in changes:
             if c["type"] == t:
                 for line in describe(c):
@@ -445,19 +445,19 @@ def wait_converged(root, env, c, allow_delete):
 
 
 def plan_command(root, env, types, names):
-    show(collect(root, env, types, names), types)
+    show(collect(root, env, types, names), types, env)
 
 
 def push_command(root, env, types, names, allow_delete):
     changes = collect(root, env, types, names)
-    show(changes, types)
+    show(changes, types, env)
     for c in changes:
         if applicable(c, allow_delete) and apply_change(c) == 202:
             wait_converged(root, env, c, allow_delete)
     left = collect(root, env, types, names)
     if left:
         raise ACSConfigError(f"{len(left)} differences remain after push")
-    print("NO DIFFERENCES after push")
+    print(color_line("NO DIFFERENCES after push"))
 
 
 def pull_overrides(t, defaults, raw, env, live):
@@ -513,6 +513,7 @@ def pull_type(root, envs, env, t, names):
 
 def pull_command(root, envs, env, types, names):
     for t in types:
+        print(pipeline_message("section", f"{t} ({env} live into repo)"))
         pull_type(root, list(envs), env, t, names)
     write_doc(root)
 
@@ -520,6 +521,7 @@ def pull_command(root, envs, env, types, names):
 def copy_command(root, src, dst, types, names):
     changed = False
     for t in types:
+        print(pipeline_message("section", f"{t} (copy {src} to {dst})"))
         for path in sorted((root / "objects" / t).glob("*.toml")):
             raw = read_toml(path)
             if path.name != "_defaults.toml":
@@ -578,6 +580,10 @@ def error(message):
     print(color_line(pipeline_message("error", message)), file=sys.stderr)
 
 
+def warning(message):
+    print(color_line(pipeline_message("warning", message)))
+
+
 def add_common(sub):
     sub.add_argument("--dir", default=".")
     sub.add_argument("--types", default="all")
@@ -625,7 +631,7 @@ def main(argv=None):
             plan_command(root, args.env, types, names)
         else:
             push_command(root, args.env, types, names, args.delete)
-    except (ACSConfigError, OSError) as err:
+    except (ACSConfigError, OSError, ValueError, KeyError) as err:
         error(str(err))
         return 1
     return 0

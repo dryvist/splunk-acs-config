@@ -203,7 +203,7 @@ class PlanTests(ACSTestCase):
                                     "--names", "shared pan extra")
         self.assertEqual(code, 0)
         self.assertEqual(out.splitlines(), [
-            "indexes",
+            "indexes (repo vs prod live)",
             "ONLY LIVE indexes/extra",
             "UPDATE indexes/shared searchableDays: 170 -> 180",
             "2 change(s)",

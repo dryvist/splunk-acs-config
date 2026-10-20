@@ -23,6 +23,10 @@ steps:
     displayName: Select Python 3.13
     inputs:
       versionSpec: "3.13"
+  - ${{ if eq(parameters.action, 'pull') }}:
+      - script: python "$(Pipeline.Workspace)/tools/pipeline/open_pr.py" branch
+        displayName: Check out the pull branch for this run
+        workingDirectory: $(Pipeline.Workspace)/config
   - script: python "$(Pipeline.Workspace)/tools/acs_config.py" ${{ parameters.action }} ${{ parameters.env }} --dir "$(Pipeline.Workspace)/config" --types "${{ parameters.types }}" --names "${{ parameters.names }}" ${{ iif(parameters.delete, '--delete', '') }}
     displayName: ${{ format('{0} {1}', parameters.action, iif(eq(parameters.action, 'pull'), format('{0} live into repo', parameters.env), iif(eq(parameters.action, 'push'), format('repo to {0}', parameters.env), format('{0} (repo vs live)', parameters.env)))) }}
     env:
@@ -30,8 +34,8 @@ steps:
       SPLUNK_SEARCH_HEAD: $(SPLUNK_SEARCH_HEAD)
       STACK_TOKEN: $(ACS_TOKEN)
   - ${{ if eq(parameters.action, 'pull') }}:
-      - script: python "$(Pipeline.Workspace)/tools/pipeline/open_pr.py" ${{ parameters.env }}
-        displayName: Open a pull request with the ${{ parameters.env }} settings
+      - script: python "$(Pipeline.Workspace)/tools/pipeline/open_pr.py" publish ${{ parameters.env }}
+        displayName: Push the ${{ parameters.env }} settings and open the pull request
         workingDirectory: $(Pipeline.Workspace)/config
         env:
           SYSTEM_ACCESSTOKEN: $(System.AccessToken)

@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import unittest
+import urllib.error
 from contextlib import redirect_stdout
 from unittest.mock import MagicMock, patch
 
@@ -21,28 +22,42 @@ ENV = {
 }
 
 
-def run(status):
+def run(func, *args, status="", remote="", urlopen_effect=None):
+    """Run func with git returning `status` for status and `remote` for ls-remote."""
+    def fake_git(cmd, **_):
+        out = {"status": status, "ls-remote": remote}.get(cmd[5], "")
+        return subprocess.CompletedProcess(cmd, 0, stdout=out)
+
     response = MagicMock()
     response.read.return_value = b'{"pullRequestId": 42}'
-    urlopen = MagicMock()
+    urlopen = MagicMock(side_effect=urlopen_effect)
     urlopen.return_value.__enter__.return_value = response
-    result = subprocess.CompletedProcess([], 0, stdout=status)
     out = io.StringIO()
     with (
-        patch("pipeline.open_pr.subprocess.run", return_value=result) as git_run,
+        patch("pipeline.open_pr.subprocess.run", side_effect=fake_git) as git_run,
         patch("pipeline.open_pr.urllib.request.urlopen", urlopen),
         patch.dict(os.environ, ENV, clear=True),
         redirect_stdout(out),
     ):
-        open_pr.open_pr("nonprod")
+        func(*args)
     return [c.args[0][5:] for c in git_run.call_args_list], urlopen, out.getvalue()
 
 
 class OpenPrTests(unittest.TestCase):
-    def test_commits_pushes_and_opens_pull_request(self):
-        calls, urlopen, out = run(" M objects/indexes/pan.json\n")
-        self.assertIn(["checkout", "-b", "acs-pull/nonprod-123"], calls)
-        self.assertEqual(calls[-1], ["push", "origin", "HEAD:refs/heads/acs-pull/nonprod-123"])
+    def test_branch_starts_new(self):
+        calls, _, out = run(open_pr.branch)
+        self.assertEqual(calls[-1], ["checkout", "-B", "acs-pull/123"])
+        self.assertEqual(out, "Starting acs-pull/123\n")
+
+    def test_branch_continues_pushed_branch(self):
+        calls, _, _ = run(open_pr.branch, remote="abc\trefs/heads/acs-pull/123\n")
+        self.assertIn(["fetch", "origin", "acs-pull/123"], calls)
+        self.assertEqual(calls[-1], ["checkout", "-B", "acs-pull/123", "FETCH_HEAD"])
+
+    def test_publish_commits_pushes_and_opens_pull_request(self):
+        calls, urlopen, out = run(open_pr.publish, "prod", status=" M objects/indexes/pan.json\n")
+        self.assertIn(["commit", "-m", "Pull prod ACS settings"], calls)
+        self.assertIn(["push", "origin", "HEAD:refs/heads/acs-pull/123"], calls)
         request = urlopen.call_args.args[0]
         self.assertEqual(
             request.full_url,
@@ -50,15 +65,20 @@ class OpenPrTests(unittest.TestCase):
         )
         self.assertEqual(request.get_header("Authorization"), "Bearer test-token")
         body = json.loads(request.data)
-        self.assertEqual(body["sourceRefName"], "refs/heads/acs-pull/nonprod-123")
+        self.assertEqual(body["sourceRefName"], "refs/heads/acs-pull/123")
         self.assertEqual(body["targetRefName"], "refs/heads/main")
         self.assertEqual(out, "https://example.invalid/project/_git/config/pullrequest/42\n")
 
-    def test_no_changes_skips_push_and_request(self):
-        calls, urlopen, out = run("")
-        self.assertEqual(calls, [["status", "--porcelain"]])
+    def test_publish_with_open_pull_request(self):
+        conflict = urllib.error.HTTPError("u", 409, "Conflict", {}, None)
+        _, _, out = run(open_pr.publish, "nonprod", status=" M x\n", urlopen_effect=conflict)
+        self.assertEqual(out, "Pull request for acs-pull/123 is already open\n")
+
+    def test_publish_without_changes_or_branch(self):
+        calls, urlopen, out = run(open_pr.publish, "prod")
+        self.assertNotIn("push", [c[0] for c in calls])
         urlopen.assert_not_called()
-        self.assertEqual(out, "NO DIFFERENCES\n")
+        self.assertEqual(out, "NO DIFFERENCES in prod\n")
 
 
 if __name__ == "__main__":

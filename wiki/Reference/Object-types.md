@@ -13,7 +13,8 @@
 | outbound-ports | `objects/outbound-ports.toml` | /access/outbound-ports | no |
 | outbound-ports-v6 | `objects/outbound-ports-v6.toml` | /access/outbound-ports-v6 | no |
 | roles | `objects/roles.toml` | /roles | no |
-| app-permissions | `objects/app-permissions.toml` | /permissions/apps | no |
+| limits | `objects/limits.toml` | /limits | no |
+| app-permissions | `objects/app-permissions.toml` | /permissions/apps | yes |
 
 A type marked no is pulled and documented. Plan and push skip it unless an
 object or the `[default]` stanza sets `push = true`. See
@@ -27,7 +28,22 @@ object or the `[default]` stanza sets `push = true`. See
 - Both outbound-ports types use the port number and store subnets. A configured
   reason is sent when creating a port; plans compare subnets.
 - roles uses the role name and stores editable role fields.
+- limits uses the stanza name and stores editable settings. ACS has no delete
+  endpoint for limits.
 - app-permissions uses the app name and stores read and write permissions.
+
+## Search head targets
+
+ACS app permissions apply to the targeted search head. Add one environment per
+search head for app permissions; each environment's variable group can set its
+own `SPLUNK_SEARCH_HEAD`.
+
+## Sharing
+
+Knowledge object sharing (private, app, and global) has no ACS API. Set it in
+each app's `metadata/default.meta` and deploy it with the app. ACS manages only
+app-level `read` and `write` roles. For built-in apps, set only those roles
+here.
 
 ## Data not stored
 

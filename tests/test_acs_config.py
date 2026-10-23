@@ -121,6 +121,19 @@ class EffectiveTests(ACSTestCase):
         self.assertEqual(acs_config.merged("indexes", {"searchableDays": 30}, {"name": "x"}, "prod")["searchableDays"],
                          30)
 
+    def test_default_environment_override_is_scoped(self):
+        path = self.root / "objects/app-permissions.toml"
+        path.write_text('[default]\nread = ["*"]\n\n[default.nonprod]\nwrite = ["sc_admin"]\n\n[my_app]\n')
+        defaults, objects = acs_config.load_type(self.root, "app-permissions", acs_config.load_environments(self.root))
+        self.assertEqual(acs_config.merged("app-permissions", defaults, objects["my_app"], "nonprod"),
+                         {"name": "my_app", "read": ["*"], "write": ["sc_admin"]})
+        self.assertEqual(acs_config.merged("app-permissions", defaults, objects["my_app"], "prod"),
+                         {"name": "my_app", "read": ["*"]})
+
+    def test_limits_are_not_pushed_or_deleted_by_default(self):
+        self.assertFalse(acs_config.pushed("limits", {}, {}, "prod"))
+        self.assertNotIn("delete", acs_config.TYPES["limits"])
+
     def test_unknown_field_is_an_error(self):
         with self.assertRaisesRegex(acs_config.ACSConfigError, "unknown field"):
             acs_config.merged("indexes", {}, {"name": "x", "bogus": 1}, "prod")
@@ -207,6 +220,15 @@ class PullTests(ACSTestCase):
         self.assertEqual(self.read("objects/app-permissions.toml")["my_app"],
                          {"environments": ["prod"], "read": ["*"], "write": ["sc_admin"]})
 
+    def test_limits_pull_keeps_only_nondefault_settings(self):
+        (self.root / "objects/limits.toml").write_text('[default]\nmax_count = "10"\n')
+        fake = FakeACS({("GET", "/limits"): [
+            {"Stanza": "search", "Values": {"max_count": "10", "max_result_rows": "20"}}]})
+        code, _, err = self.run_cli(fake, "pull", "prod", "--types", "limits", "--names", "search")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.read("objects/limits.toml")["search"], {
+            "environments": ["prod"], "max_result_rows": "20"})
+
     def test_built_in_roles_are_skipped_and_imported_roles_mapped(self):
         fake = FakeACS({("GET", "/roles"): {"roles": [
             {"name": "admin", "capabilities": ["admin_all_objects"]},
@@ -220,8 +242,26 @@ class PullTests(ACSTestCase):
 
 
 class PlanTests(ACSTestCase):
+    def test_limits_plan_shows_changed_setting_when_enabled(self):
+        (self.root / "objects/limits.toml").write_text('[search]\npush = true\nmax_count = "20"\n')
+        fake = FakeACS({("GET", "/limits"): [
+            {"Stanza": "search", "Values": {"max_count": "10"}}]})
+        code, out, err = self.run_cli(fake, "plan", "prod", "--types", "limits")
+        self.assertEqual(code, 0, err)
+        self.assertIn('UPDATE limits/search max_count: "10" -> "20"', out)
+
+    def test_app_permissions_push_by_default_uses_inherited_read(self):
+        path = self.root / "objects/app-permissions.toml"
+        path.write_text('[default]\nread = ["*"]\n\n[my_app]\nwrite = ["sc_admin"]\n')
+        fake = FakeACS({("GET", "/permissions/apps"): {
+            "apps": [{"name": "my_app", "perms": {"read": ["user"], "write": ["sc_admin"]}}]}})
+        code, out, _ = self.run_cli(fake, "plan", "prod", "--types", "app-permissions")
+        self.assertEqual(code, 0)
+        self.assertIn('UPDATE app-permissions/my_app read: ["user"] -> ["*"]', out)
+        self.assertEqual([call[0] for call in fake.calls], ["GET"])
+
     def test_types_without_push_are_not_read(self):
-        code, out, _ = self.run_cli(FakeACS(), "plan", "prod", "--types", "roles app-permissions")
+        code, out, _ = self.run_cli(FakeACS(), "plan", "prod", "--types", "roles")
         self.assertEqual(code, 0)
         self.assertEqual(out.splitlines()[-1], "NO DIFFERENCES")
 
@@ -258,6 +298,27 @@ class PlanTests(ACSTestCase):
 
 
 class PushTests(ACSTestCase):
+    def test_limits_push_posts_settings(self):
+        (self.root / "objects/limits.toml").write_text('[search]\npush = true\nmax_count = "20"\n')
+        before = [{"Stanza": "search", "Values": {"max_count": "10"}}]
+        after = [{"Stanza": "search", "Values": {"max_count": "20"}}]
+        fake = FakeACS({("GET", "/limits"): Seq(before, after)})
+        code, _, err = self.run_cli(fake, "push", "prod", "--types", "limits")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(fake.writes(), [
+            ("POST", "/limits/search", {"settings": {"max_count": "20"}})])
+
+    def test_app_permission_patch_contains_only_read_and_write(self):
+        before = {"apps": [{"name": "my_app", "perms": {"read": ["user"], "write": ["user"]}}]}
+        after = {"apps": [{"name": "my_app", "perms": {"read": ["*"], "write": ["sc_admin"]}}]}
+        (self.root / "objects/app-permissions.toml").write_text(
+            '[my_app]\nread = ["*"]\nwrite = ["sc_admin"]\n')
+        fake = FakeACS({("GET", "/permissions/apps"): Seq(before, after)})
+        code, _, err = self.run_cli(fake, "push", "prod", "--types", "app-permissions")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(fake.writes(), [
+            ("PATCH", "/permissions/apps/my_app", {"read": ["*"], "write": ["sc_admin"]})])
+
     def test_create_and_patch_bodies(self):
         before = {"indexes": [index("shared", searchableDays=170)]}
         after = {"indexes": [index("shared", searchableDays=180), index("pan")]}

@@ -220,6 +220,23 @@ class PullTests(ACSTestCase):
         self.assertEqual(self.read("objects/app-permissions.toml")["my_app"],
                          {"environments": ["prod"], "read": ["*"], "write": ["sc_admin"]})
 
+    def test_splunkbase_apps_pull_keeps_license(self):
+        (self.root / "objects/splunkbase-apps.toml").write_text(
+            '[my_app]\nid = "old-id"\nversion = "0.9"\nlicense = "my-license"\n\n'
+            '[hand_set]\nid = "hand-set-id"\nversion = "0.9"\nlicense = "hand-set-license"\n')
+        fake = FakeACS({("GET", "/apps/victoria"): {"apps": [
+            {"name": "my_app", "splunkbaseID": "1234", "version": "1.0"},
+            {"name": "hand_set", "version": "1.0"},
+        ]}})
+        code, _, err = self.run_cli(fake, "pull", "prod", "--types", "splunkbase-apps")
+        self.assertEqual(code, 0, err)
+        defaults, objects = acs_config.load_type(
+            self.root, "splunkbase-apps", acs_config.load_environments(self.root))
+        self.assertEqual(acs_config.merged("splunkbase-apps", defaults, objects["my_app"], "prod"),
+                         {"name": "my_app", "id": "1234", "version": "1.0", "license": "my-license"})
+        self.assertEqual(acs_config.merged("splunkbase-apps", defaults, objects["hand_set"], "prod"),
+                         {"name": "hand_set", "version": "1.0", "license": "hand-set-license"})
+
     def test_limits_pull_keeps_only_nondefault_settings(self):
         (self.root / "objects/limits.toml").write_text('[default]\nmax_count = "10"\n')
         fake = FakeACS({("GET", "/limits"): [
@@ -260,6 +277,18 @@ class PlanTests(ACSTestCase):
         self.assertIn('UPDATE app-permissions/my_app read: ["user"] -> ["*"]', out)
         self.assertEqual([call[0] for call in fake.calls], ["GET"])
 
+    def test_splunkbase_app_plan_compares_only_version(self):
+        (self.root / "objects/splunkbase-apps.toml").write_text(
+            '[my_app]\nid = "repo-id"\nversion = "1.1"\nlicense = "my-license"\n')
+        fake = FakeACS({("GET", "/apps/victoria"): {"apps": [
+            {"name": "my_app", "splunkbaseID": "live-id", "version": "1.0"},
+        ]}})
+        code, out, err = self.run_cli(fake, "plan", "prod", "--types", "splunkbase-apps")
+        self.assertEqual(code, 0, err)
+        self.assertIn('UPDATE splunkbase-apps/my_app version: "1.0" -> "1.1"', out)
+        self.assertNotIn("repo-id", out)
+        self.assertNotIn("license", out)
+
     def test_types_without_push_are_not_read(self):
         code, out, _ = self.run_cli(FakeACS(), "plan", "prod", "--types", "roles")
         self.assertEqual(code, 0)
@@ -298,6 +327,59 @@ class PlanTests(ACSTestCase):
 
 
 class PushTests(ACSTestCase):
+    def test_splunkbase_push_logs_in_once_and_sends_form_headers(self):
+        (self.root / "objects/splunkbase-apps.toml").write_text(
+            '[new_app]\nid = "1234"\nversion = "1.0"\nlicense = "new-license"\n\n'
+            '[existing_app]\nid = "5678"\nversion = "1.1"\nlicense = "existing-license"\n\n'
+            '[unlicensed_app]\nid = "9012"\nversion = "1.0"\n')
+        requests, reads = [], [0]
+
+        def response(body):
+            result = mock.MagicMock()
+            result.__enter__.return_value.status = 200
+            result.__enter__.return_value.read.return_value = body
+            return result
+
+        def open_url(req, timeout):
+            requests.append(req)
+            if "splunkbase.splunk.com" in req.full_url:
+                return response(b"<session><id>session-id</id></session>")
+            if req.get_method() == "GET":
+                reads[0] += 1
+                body = (b'{"apps":[{"name":"existing_app","splunkbaseID":"5678","version":"1.0"}]}'
+                        if reads[0] == 1 else
+                        b'{"apps":[{"name":"existing_app","splunkbaseID":"5678","version":"1.1"},'
+                        b'{"name":"new_app","splunkbaseID":"1234","version":"1.0"},'
+                        b'{"name":"unlicensed_app","splunkbaseID":"9012","version":"1.0"}]}')
+                return response(body)
+            return response(b"{}")
+
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.dict(os.environ, {
+            "SPLUNKBASE_USERNAME": "user", "SPLUNKBASE_PASSWORD": "password"}), \
+                mock.patch.object(acs_config, "urlopen", side_effect=open_url), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = acs_config.main([
+                "push", "prod", "--types", "splunkbase-apps", "--dir", str(self.root)])
+        self.assertEqual(code, 0, err.getvalue())
+        login = [req for req in requests if "splunkbase.splunk.com" in req.full_url]
+        self.assertEqual(len(login), 1)
+        self.assertEqual(login[0].data, b"username=user&password=password")
+        installs = [req for req in requests
+                    if req.get_method() == "POST" and "admin.splunk.com" in req.full_url]
+        updates = [req for req in requests
+                   if req.get_method() == "PATCH" and "admin.splunk.com" in req.full_url]
+        install = next(req for req in installs if req.data == b"splunkbaseID=1234&version=1.0")
+        self.assertEqual(updates[0].data, b"version=1.1")
+        for req, license_url in ((install, "new-license"), (updates[0], "existing-license")):
+            headers = {key.lower(): value for key, value in req.header_items()}
+            self.assertEqual(headers["content-type"], "application/x-www-form-urlencoded")
+            self.assertEqual(headers["x-splunkbase-authorization"], "session-id")
+            self.assertEqual(headers["acs-licensing-ack"], license_url)
+        unlicensed = next(req for req in installs if req.data == b"splunkbaseID=9012&version=1.0")
+        headers = {key.lower(): value for key, value in unlicensed.header_items()}
+        self.assertNotIn("acs-licensing-ack", headers)
+
     def test_limits_push_posts_settings(self):
         (self.root / "objects/limits.toml").write_text('[search]\npush = true\nmax_count = "20"\n')
         before = [{"Stanza": "search", "Values": {"max_count": "10"}}]

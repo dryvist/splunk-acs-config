@@ -11,7 +11,7 @@ from collections import Counter
 from pathlib import Path
 import tomllib
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from pipeline.output import color_line, pipeline_message
@@ -83,6 +83,12 @@ TYPES = {
         "list": "/permissions/apps", "items": ("apps",), "paged": True,
         "patch": "/permissions/apps/{key}", "push": True,
     },
+    "splunkbase-apps": {
+        "key": "name", "fields": ("name", "id", "version", "license"), "patch_fields": ("version",),
+        "repo_only": ("license",),
+        "list": "/apps/victoria?splunkbase=true&count=0", "items": ("apps",),
+        "post": "/apps/victoria?splunkbase=true", "patch": "/apps/victoria/{key}", "push": True,
+    },
 }
 
 
@@ -115,14 +121,19 @@ def api_base():
     return f"https://admin.splunk.com/{host}/adminconfig/v2"
 
 
-def request(method, path, body=None):
+def request(method, path, body=None, form=False, extra_headers=None):
+    external = path.startswith("https://")
     token = env_value("STACK_TOKEN") or env_value("ACS_TOKEN")
-    if not token:
+    if not external and not token:
         raise ACSConfigError("STACK_TOKEN or ACS_TOKEN is not set")
-    url = api_base() + path
-    data = None if body is None else json.dumps(body).encode("utf-8")
-    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json",
-               "Content-Type": "application/json"}
+    url = path if external else api_base() + path
+    data = None if body is None else (
+        urlencode(body).encode("utf-8") if form else json.dumps(body).encode("utf-8"))
+    headers = {"Accept": "application/json",
+               "Content-Type": "application/x-www-form-urlencoded" if form else "application/json"}
+    if not external:
+        headers["Authorization"] = f"Bearer {token}"
+    headers.update(extra_headers or {})
     try:
         with urlopen(Request(url, data=data, method=method, headers=headers), timeout=60) as resp:
             status, text = resp.status, resp.read().decode("utf-8")
@@ -139,7 +150,7 @@ def request(method, path, body=None):
     except UnicodeDecodeError as err:
         raise ACSConfigError(f"invalid UTF-8 response from {method} {url}: {err}") from None
     try:
-        data = json.loads(text) if text.strip() else None
+        data = text if external else (json.loads(text) if text.strip() else None)
     except json.JSONDecodeError as err:
         raise ACSConfigError(f"invalid JSON from {method} {url}: {err}") from None
     return data, status
@@ -346,6 +357,8 @@ def normalize(t, item):
         item = {"stanza": item["Stanza"], **item["Values"]}
     elif t == "roles":
         item = {**item, "importedRoles": (item.get("imported") or {}).get("roles")}
+    elif t == "splunkbase-apps":
+        item = {"name": item["name"], "id": item.get("splunkbaseID"), "version": item["version"]}
     elif t.startswith("outbound-ports"):
         item = {"port": item["port"], "subnets": item.get("destinationRanges")}
     fields = type_fields(t, item)
@@ -439,7 +452,7 @@ def key_changes(t, key, eff, live):
     patch_fields = spec.get("patch_fields", tuple(f for f in type_fields(t, live, eff) if f != spec["key"]))
     fields = {f: (live.get(f), eff.get(f)) for f in patch_fields
               if canon(live.get(f)) != canon(eff.get(f))}
-    return [change(t, key, "UPDATE", fields=fields)] if fields else []
+    return [change(t, key, "UPDATE", fields=fields, eff=eff)] if fields else []
 
 
 def type_changes(root, env, t, names=None):
@@ -505,12 +518,34 @@ def add_body(t, key, c):
     return {"subnets": c["subnets"]}
 
 
-def apply_change(c):
+def splunkbase_session():
+    credentials = {"username": env_value("SPLUNKBASE_USERNAME"),
+                  "password": env_value("SPLUNKBASE_PASSWORD")}
+    if not all(credentials.values()):
+        raise ACSConfigError("SPLUNKBASE_USERNAME and SPLUNKBASE_PASSWORD are required")
+    data, _ = request("POST", "https://splunkbase.splunk.com/api/account:login", credentials, form=True)
+    session = re.search(r"<id>([^<]+)</id>", data)
+    if not session:
+        raise ACSConfigError("Splunkbase login response has no session id")
+    return session.group(1)
+
+
+def apply_change(c, session=None):
     t, key, op, spec = c["type"], c["key"], c["op"], TYPES[c["type"]]
     if t == "limits" and op in ("CREATE", "UPDATE"):
         values = c["eff"] if op == "CREATE" else {field: repo for field, (_, repo) in c["fields"].items()}
         body = {"settings": {field: value for field, value in values.items() if field != spec["key"]}}
         return request("POST", path_for(spec["post"], key), body)[1]
+    if t == "splunkbase-apps":
+        body = ({"splunkbaseID": c["eff"]["id"], "version": c["eff"]["version"]}
+                if op == "CREATE" else
+                {field: repo for field, (_, repo) in c["fields"].items()})
+        path = spec["post"] if op == "CREATE" else path_for(spec["patch"], key)
+        headers = {"X-Splunkbase-Authorization": session}
+        if c["eff"].get("license"):
+            headers["ACS-Licensing-Ack"] = c["eff"]["license"]
+        return request("POST" if op == "CREATE" else "PATCH", path, body, form=True,
+                       extra_headers=headers)[1]
     if op == "CREATE":
         return request("POST", spec["post"], c["eff"])[1]
     if op == "UPDATE":
@@ -542,8 +577,10 @@ def plan_command(root, env, types, names):
 def push_command(root, env, types, names, allow_delete):
     changes = collect(root, env, types, names)
     show(changes, types, env)
+    session = splunkbase_session() if any(c["type"] == "splunkbase-apps" and applicable(c, allow_delete)
+                                          for c in changes) else None
     for c in changes:
-        if applicable(c, allow_delete) and apply_change(c) == 202:
+        if applicable(c, allow_delete) and apply_change(c, session) == 202:
             wait_converged(root, env, c, allow_delete)
     left = collect(root, env, types, names)
     if left:
@@ -646,7 +683,9 @@ def pull_type(root, envs, env, t, names):
             values = {e: {f: v for f, v in merged(t, defaults, existing, e).items()
                           if f != spec["key"]}
                       for e in object_envs if e != env}
-            values[env] = {f: v for f, v in live[key].items() if f != spec["key"]}
+            values[env] = {f: v for f, v in merged(t, defaults, existing or {}, env).items()
+                           if f in spec.get("repo_only", ())}
+            values[env].update({f: v for f, v in live[key].items() if f != spec["key"]})
             keep = {f: existing[f] for f in ("push",) if existing and f in existing}
             push_overrides = {e: {"push": value["push"]}
                               for e, value in (existing.get("overrides") or {}).items()

@@ -32,6 +32,8 @@ steps:
     env:
       SPLUNK_STACK: $(SPLUNK_STACK)
       SPLUNK_SEARCH_HEAD: $(SPLUNK_SEARCH_HEAD)
+      SPLUNKBASE_USERNAME: $(SPLUNKBASE_USERNAME)
+      SPLUNKBASE_PASSWORD: $(SPLUNKBASE_PASSWORD)
       STACK_TOKEN: $(ACS_TOKEN)
   - ${{ if eq(parameters.action, 'pull') }}:
       - script: python "$(Pipeline.Workspace)/tools/pipeline/open_pr.py" changes

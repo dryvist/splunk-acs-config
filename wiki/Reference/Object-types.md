@@ -29,6 +29,12 @@ object or the `[default]` stanza sets `push = true`. See
 - roles uses the role name and stores editable role fields.
 - app-permissions uses the app name and stores read and write permissions.
 
+## Search head targets
+
+ACS app permissions apply to the targeted search head. Add one environment per
+search head for app permissions; each environment's variable group can set its
+own `SPLUNK_SEARCH_HEAD`.
+
 ## Data not stored
 
 - User records and ACS credentials are not object data.

@@ -25,9 +25,9 @@ allows live-only objects to be deleted. Review the plan before enabling it.
   environment.
 - Action: plan, pull, or push.
 - Object types: all, or space-separated from indexes hec-tokens ip-allowlists
-  ip-allowlists-v6 outbound-ports outbound-ports-v6 roles app-permissions.
+  ip-allowlists-v6 outbound-ports outbound-ports-v6 roles limits app-permissions.
 - Object names: all, or space-separated stanza names (index, token, feature,
-  port, role or app).
+  port, role, limits stanza or app).
 - Delete: removes objects that exist only in the stack. Push only. Deleting an
   index deletes its data.
 

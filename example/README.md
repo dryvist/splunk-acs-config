@@ -11,7 +11,8 @@ Each file in `objects/` holds one object type. `[default]` holds shared values; 
 | outbound-ports | `objects/outbound-ports.toml` | no | 1 | 1 |
 | outbound-ports-v6 | `objects/outbound-ports-v6.toml` | no | 0 | 0 |
 | roles | `objects/roles.toml` | no | 1 | 1 |
-| app-permissions | `objects/app-permissions.toml` | no | 1 | 1 |
+| limits | `objects/limits.toml` | no | 0 | 0 |
+| app-permissions | `objects/app-permissions.toml` | yes | 1 | 1 |
 
 ## indexes
 
@@ -46,6 +47,10 @@ Each file in `objects/` holds one object type. `[default]` holds shared values; 
 - srchDiskQuota: 100 (Splunk default)
 - srchJobsQuota: 3 (Splunk default)
 - rtSrchJobsQuota: 6 (Splunk default)
+
+## limits
+
+- none
 
 ## app-permissions
 

@@ -39,10 +39,10 @@ environment name. A field that most objects do not have never becomes a
 default.
 
 The stanza name is the object key: the index name, HEC token name, allowlist
-feature, outbound port, role name, or app name. TOML quotes a name when it
-needs to, for example `["my.index"]`. The key is not repeated inside the
-stanza. The tool adds it when it reads the file, and it stores a port as a
-number.
+feature, outbound port, role name, limits stanza, or app name. TOML quotes a
+name when it needs to, for example `["my.index"]`. The key is not repeated
+inside the stanza. The tool adds it when it reads the file, and it stores a
+port as a number.
 
 Comments starting with `#` are allowed. A pull rewrites the type files, so a
 comment is lost on the next pull.
@@ -127,9 +127,9 @@ no `environments` line.
 ## Push scope
 
 Pull and doc read every type. Plan and push compare and write only objects
-whose `push` flag is true. indexes and hec-tokens default to `push = true`; every
-other type defaults to `push = false`, so settings that Splunk apps manage are
-documented but never written.
+whose `push` flag is true. indexes, hec-tokens, and app-permissions default to
+`push = true`; every other type defaults to `push = false`, so the remaining
+types are documented but not written by default.
 
 Set `push` in `[default]` to change a whole type, or in one stanza to change
 that object. Set it in `[default.<E>]` or `[<object>.<E>]` to change one
@@ -139,6 +139,21 @@ environment. The last layer wins.
 [pan_analyst]
 push = true
 ~~~
+
+## App permission inheritance
+
+~~~toml
+[default]
+read = ["*"]
+write = ["admin", "sc_admin"]
+
+[search]
+
+[my_app]
+write = ["sc_admin", "my_role"]
+~~~
+
+The `search` app inherits both `read` and `write` from `[default]`.
 
 ## Worked example
 

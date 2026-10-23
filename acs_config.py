@@ -74,6 +74,10 @@ TYPES = {
         "list": "/roles", "items": ("roles",), "paged": True, "skip": BUILTIN_ROLES,
         "post": "/roles", "patch": "/roles/{key}", "delete": "/roles/{key}",
     },
+    "limits": {
+        "key": "stanza", "fields": None, "list": "/limits", "items": (),
+        "post": "/limits/{key}",
+    },
     "app-permissions": {
         "key": "name", "fields": ("name", "read", "write"), "patch_fields": ("read", "write"),
         "list": "/permissions/apps", "items": ("apps",), "paged": True,
@@ -82,8 +86,15 @@ TYPES = {
 }
 
 
-for _spec in TYPES.values():
-    _spec.setdefault("patch_fields", tuple(f for f in _spec["fields"] if f != _spec["key"]))
+def type_fields(t, *items):
+    fields = TYPES[t]["fields"]
+    return fields if fields is not None else tuple(sorted(set().union(*(i.keys() for i in items))))
+
+
+for _type, _spec in TYPES.items():
+    _fields = type_fields(_type)
+    if _fields:
+        _spec.setdefault("patch_fields", tuple(f for f in _fields if f != _spec["key"]))
 
 
 class ACSConfigError(Exception):
@@ -315,7 +326,8 @@ def merged(t, defaults, raw, env, own_overrides=True):
         eff.update({k: v for k, v in layer.items() if k not in META})
         for k in layer.get("unset", ()):
             eff.pop(k, None)
-    unknown = sorted(set(eff) - set(TYPES[t]["fields"]))
+    fields = type_fields(t, eff)
+    unknown = sorted(set(eff) - set(fields))
     if unknown:
         raise ACSConfigError(f"{t}: unknown field(s) {', '.join(unknown)}")
     return {k: v for k, v in eff.items() if v is not None}
@@ -330,11 +342,14 @@ def normalize(t, item):
         item = item.get("spec", item)
     elif t == "app-permissions":
         item = {"name": item["name"], **item.get("perms", {})}
+    elif t == "limits":
+        item = {"stanza": item["Stanza"], **item["Values"]}
     elif t == "roles":
         item = {**item, "importedRoles": (item.get("imported") or {}).get("roles")}
     elif t.startswith("outbound-ports"):
         item = {"port": item["port"], "subnets": item.get("destinationRanges")}
-    return {k: canon(v) for k, v in item.items() if k in TYPES[t]["fields"] and v is not None}
+    fields = type_fields(t, item)
+    return {k: canon(v) for k, v in item.items() if k in fields and v is not None}
 
 
 def response_items(data, wrapper):
@@ -421,7 +436,8 @@ def key_changes(t, key, eff, live):
         if "post" not in spec:
             return [change(t, key, "MISSING")]
         return [change(t, key, "CREATE", eff=eff)]
-    fields = {f: (live.get(f), eff.get(f)) for f in spec["patch_fields"]
+    patch_fields = spec.get("patch_fields", tuple(f for f in type_fields(t, live, eff) if f != spec["key"]))
+    fields = {f: (live.get(f), eff.get(f)) for f in patch_fields
               if canon(live.get(f)) != canon(eff.get(f))}
     return [change(t, key, "UPDATE", fields=fields)] if fields else []
 
@@ -491,6 +507,10 @@ def add_body(t, key, c):
 
 def apply_change(c):
     t, key, op, spec = c["type"], c["key"], c["op"], TYPES[c["type"]]
+    if t == "limits" and op in ("CREATE", "UPDATE"):
+        values = c["eff"] if op == "CREATE" else {field: repo for field, (_, repo) in c["fields"].items()}
+        body = {"settings": {field: value for field, value in values.items() if field != spec["key"]}}
+        return request("POST", path_for(spec["post"], key), body)[1]
     if op == "CREATE":
         return request("POST", spec["post"], c["eff"])[1]
     if op == "UPDATE":
@@ -578,7 +598,7 @@ def compact(t, defaults, values, keep):
 def common_values(t, live):
     key = TYPES[t]["key"]
     values = {}
-    for field in TYPES[t]["fields"]:
+    for field in type_fields(t, *live.values()):
         if field == key:
             continue
         counts = Counter(json.dumps(canon(raw.get(field)), sort_keys=True) for raw in live.values())

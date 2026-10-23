@@ -25,7 +25,8 @@ allows live-only objects to be deleted. Review the plan before enabling it.
   environment.
 - Action: plan, pull, or push.
 - Object types: all, or space-separated from indexes hec-tokens ip-allowlists
-  ip-allowlists-v6 outbound-ports outbound-ports-v6 roles limits app-permissions.
+  ip-allowlists-v6 outbound-ports outbound-ports-v6 roles limits app-permissions
+  splunkbase-apps.
 - Object names: all, or space-separated stanza names (index, token, feature,
   port, role, limits stanza or app).
 - Delete: removes objects that exist only in the stack. Push only. Deleting an
@@ -36,6 +37,8 @@ allows live-only objects to be deleted. Review the plan before enabling it.
 - STACK_TOKEN is used when set; otherwise the tool uses ACS_TOKEN.
 - SPLUNK_STACK names the stack.
 - SPLUNK_SEARCH_HEAD is optional and is ignored when empty or unresolved.
+- SPLUNKBASE_USERNAME and SPLUNKBASE_PASSWORD are used only when a Splunkbase
+  app change is pushed.
 
 The authorization token is sent in the ACS Bearer header. It belongs in a
 secret variable group or the local environment, not in a TOML file.

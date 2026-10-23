@@ -13,6 +13,7 @@ Each file in `objects/` holds one object type. `[default]` holds shared values; 
 | roles | `objects/roles.toml` | no | 1 | 1 |
 | limits | `objects/limits.toml` | no | 0 | 0 |
 | app-permissions | `objects/app-permissions.toml` | yes | 1 | 1 |
+| splunkbase-apps | `objects/splunkbase-apps.toml` | yes | 1 | 1 |
 
 ## indexes
 
@@ -53,5 +54,9 @@ Each file in `objects/` holds one object type. `[default]` holds shared values; 
 - none
 
 ## app-permissions
+
+- none
+
+## splunkbase-apps
 
 - none

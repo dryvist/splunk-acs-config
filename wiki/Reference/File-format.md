@@ -155,6 +155,18 @@ write = ["sc_admin", "my_role"]
 
 The `search` app inherits both `read` and `write` from `[default]`.
 
+## Splunkbase app versions
+
+~~~toml
+[my_app]
+id = "12345"
+version = "1.0.0"
+license = "<license URL>"
+
+[my_app.prod]
+version = "1.1.0"
+~~~
+
 ## Worked example
 
 With the example above, the effective searchableDays values are:

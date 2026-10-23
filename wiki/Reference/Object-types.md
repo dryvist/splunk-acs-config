@@ -15,6 +15,7 @@
 | roles | `objects/roles.toml` | /roles | no |
 | limits | `objects/limits.toml` | /limits | no |
 | app-permissions | `objects/app-permissions.toml` | /permissions/apps | yes |
+| splunkbase-apps | `objects/splunkbase-apps.toml` | /apps/victoria?splunkbase=true&count=0 | yes |
 
 A type marked no is pulled and documented. Plan and push skip it unless an
 object or the `[default]` stanza sets `push = true`. See
@@ -31,6 +32,13 @@ object or the `[default]` stanza sets `push = true`. See
 - limits uses the stanza name and stores editable settings. ACS has no delete
   endpoint for limits.
 - app-permissions uses the app name and stores read and write permissions.
+- splunkbase-apps uses the app name and stores its id, version, and license URL.
+
+## Splunkbase apps
+
+Pull records the app name, id, and version. Plans compare only version. If ACS
+reports a missing license, copy the URL from the error into `license`. This
+type has no delete operation.
 
 ## Search head targets
 

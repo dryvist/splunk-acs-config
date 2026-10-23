@@ -15,7 +15,7 @@ parameters:
       - pull
       - push
   - name: types
-    displayName: Object types - all, or space-separated from indexes hec-tokens ip-allowlists ip-allowlists-v6 outbound-ports outbound-ports-v6 roles app-permissions
+    displayName: Object types - all, or space-separated from indexes hec-tokens ip-allowlists ip-allowlists-v6 outbound-ports outbound-ports-v6 roles app-permissions splunkbase-apps
     type: string
     default: all
   - name: names

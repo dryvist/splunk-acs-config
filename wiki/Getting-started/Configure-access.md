@@ -38,6 +38,9 @@
     with the body `{"subnets": ["<agent-subnet>"]}` and the header
     `Authorization: Bearer <acs-token>`.
 
+For a variable group that can push Splunkbase apps, add
+`SPLUNKBASE_USERNAME` and `SPLUNKBASE_PASSWORD` as secret variables.
+
 **Verify:**
 
 1. Confirm both variable groups list `SPLUNK_STACK` and `ACS_TOKEN`.

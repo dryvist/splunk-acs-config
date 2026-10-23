@@ -1,0 +1,4 @@
+[sample_app]
+id = "12345"
+version = "1.0.0"
+license = "<license URL>"

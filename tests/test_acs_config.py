@@ -121,6 +121,15 @@ class EffectiveTests(ACSTestCase):
         self.assertEqual(acs_config.merged("indexes", {"searchableDays": 30}, {"name": "x"}, "prod")["searchableDays"],
                          30)
 
+    def test_default_environment_override_is_scoped(self):
+        path = self.root / "objects/app-permissions.toml"
+        path.write_text('[default]\nread = ["*"]\n\n[default.nonprod]\nwrite = ["sc_admin"]\n\n[my_app]\n')
+        defaults, objects = acs_config.load_type(self.root, "app-permissions", acs_config.load_environments(self.root))
+        self.assertEqual(acs_config.merged("app-permissions", defaults, objects["my_app"], "nonprod"),
+                         {"name": "my_app", "read": ["*"], "write": ["sc_admin"]})
+        self.assertEqual(acs_config.merged("app-permissions", defaults, objects["my_app"], "prod"),
+                         {"name": "my_app", "read": ["*"]})
+
     def test_unknown_field_is_an_error(self):
         with self.assertRaisesRegex(acs_config.ACSConfigError, "unknown field"):
             acs_config.merged("indexes", {}, {"name": "x", "bogus": 1}, "prod")
@@ -220,8 +229,18 @@ class PullTests(ACSTestCase):
 
 
 class PlanTests(ACSTestCase):
+    def test_app_permissions_push_by_default_uses_inherited_read(self):
+        path = self.root / "objects/app-permissions.toml"
+        path.write_text('[default]\nread = ["*"]\n\n[my_app]\nwrite = ["sc_admin"]\n')
+        fake = FakeACS({("GET", "/permissions/apps"): {
+            "apps": [{"name": "my_app", "perms": {"read": ["user"], "write": ["sc_admin"]}}]}})
+        code, out, _ = self.run_cli(fake, "plan", "prod", "--types", "app-permissions")
+        self.assertEqual(code, 0)
+        self.assertIn('UPDATE app-permissions/my_app read: ["user"] -> ["*"]', out)
+        self.assertEqual([call[0] for call in fake.calls], ["GET"])
+
     def test_types_without_push_are_not_read(self):
-        code, out, _ = self.run_cli(FakeACS(), "plan", "prod", "--types", "roles app-permissions")
+        code, out, _ = self.run_cli(FakeACS(), "plan", "prod", "--types", "roles")
         self.assertEqual(code, 0)
         self.assertEqual(out.splitlines()[-1], "NO DIFFERENCES")
 
@@ -258,6 +277,17 @@ class PlanTests(ACSTestCase):
 
 
 class PushTests(ACSTestCase):
+    def test_app_permission_patch_contains_only_read_and_write(self):
+        before = {"apps": [{"name": "my_app", "perms": {"read": ["user"], "write": ["user"]}}]}
+        after = {"apps": [{"name": "my_app", "perms": {"read": ["*"], "write": ["sc_admin"]}}]}
+        (self.root / "objects/app-permissions.toml").write_text(
+            '[my_app]\nread = ["*"]\nwrite = ["sc_admin"]\n')
+        fake = FakeACS({("GET", "/permissions/apps"): Seq(before, after)})
+        code, _, err = self.run_cli(fake, "push", "prod", "--types", "app-permissions")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(fake.writes(), [
+            ("PATCH", "/permissions/apps/my_app", {"read": ["*"], "write": ["sc_admin"]})])
+
     def test_create_and_patch_bodies(self):
         before = {"indexes": [index("shared", searchableDays=170)]}
         after = {"indexes": [index("shared", searchableDays=180), index("pan")]}

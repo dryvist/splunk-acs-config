@@ -1,11 +1,11 @@
 [default]
 
 [sample_app]
-owner = "<owner>"
+owner = "platform-team"
 read = ["*"]
 write = ["sc_admin"]
 
 [sample_private_app]
-owner = "<owner>"
+owner = "platform-team"
 read = ["*"]
 write = ["sc_admin"]

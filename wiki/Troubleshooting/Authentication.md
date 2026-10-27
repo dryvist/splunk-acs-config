@@ -1,30 +1,13 @@
 # ACS authentication
 
-[Home](/Home) > [Troubleshooting](/Troubleshooting) > Authentication
-
-[[_TOC_]]
-
-This page troubleshoots failed ACS authentication and authorization.
+This page fixes ACS authentication and authorization errors.
 
 ## HTTP 401
 
-Check that the ACS token is valid and intended for the ACS audience. Confirm
-the variable group defines `ACS_TOKEN`. The pipeline passes it to the tool as
-`STACK_TOKEN`.
+1. Check that the ACS token is valid and intended for the ACS audience.
+2. Confirm the variable group defines `ACS_TOKEN`. See [Access and tokens](/Setup/Access-and-tokens).
 
 ## HTTP 403
 
-Confirm the token user has the sc_admin role. Check that the token belongs to
-the selected stack and that the stack name is correct.
-
-Do not put a token value in a config file, pipeline log, or pull request.
-
-## Related
-
-- [Configure access](/Getting-started/Configure-access)
-- [ACS allowlist](/Troubleshooting/ACS-allowlist)
-- [Commands](/Reference/Commands)
-
----
-
-[Next: ACS allowlist >](/Troubleshooting/ACS-allowlist)
+1. Confirm the token user has the `sc_admin` role. See [Access and tokens](/Setup/Access-and-tokens).
+2. Check that the token belongs to the selected stack and that the stack name is correct.

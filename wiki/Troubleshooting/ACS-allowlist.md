@@ -1,31 +1,17 @@
 # ACS allowlist
 
-[Home](/Home) > [Troubleshooting](/Troubleshooting) > ACS allowlist
-
-[[_TOC_]]
-
-This page troubleshoots ACS requests blocked by network access.
+This page fixes ACS requests that cannot connect, or that ACS denies by agent address.
 
 ## Symptom
 
-The ACS request cannot connect or ACS denies the agent address.
+The ACS request cannot connect, or ACS denies the agent address.
 
 ## Check
 
-Confirm the ACS allowlist feature acs includes the current pipeline agent IP.
-Hosted agent addresses can change, so use an approved stable agent network or
-update the allowlist when the agent address changes.
+Confirm the ACS allowlist feature `acs` includes the current pipeline agent IP. Hosted agent addresses can change, so use
+an approved stable agent network or update the allowlist when the agent address changes. To add a subnet, see
+[Access and tokens](/Setup/Access-and-tokens).
 
 ## Verify
 
-Rerun plan and confirm the request reaches ACS.
-
-## Related
-
-- [Configure access](/Getting-started/Configure-access)
-- [Authentication](/Troubleshooting/Authentication)
-
----
-
-[< Previous: Authentication](/Troubleshooting/Authentication) |
-[Next: Async timeout >](/Troubleshooting/Async-timeout)
+Rerun [Plan](/What-to-run/Plan) and confirm the request reaches ACS.

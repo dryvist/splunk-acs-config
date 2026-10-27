@@ -17,6 +17,8 @@ python acs_config.py copy <from-env> <to-env> [--dir D] [--types ...] [--names .
 python acs_config.py doc [--dir D]
 ~~~
 
+The command writes `apps.csv` beside `README.md`; place it in an app's `lookups/` folder and query it with `| inputlookup apps.csv`.
+
 An empty filter or all selects every type or name. The push --delete option
 allows live-only objects to be deleted. Review the plan before enabling it.
 

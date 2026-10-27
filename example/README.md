@@ -56,7 +56,7 @@ Each file in `objects/` holds one object type. `[default]` holds shared values; 
 
 ## app-permissions
 
-- none
+- write: sc_admin ([default])
 
 ## private-apps
 

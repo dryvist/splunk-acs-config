@@ -1,13 +1,10 @@
 # Commands
 
-[Home](/Home) > [Reference](/Reference) > Commands
+This page lists the command syntax, options, pipeline parameters and environment variables.
 
-[[_TOC_]]
+## Syntax
 
-This page lists the command syntax and pipeline parameters.
-
-Run the tool with Python 3.11 or later. Commands use the current directory
-unless you provide --dir.
+Run the tool with Python 3.11 or later. Commands use the current directory unless you provide `--dir`.
 
 ~~~text
 python acs_config.py pull <env> [--dir D] [--types "t1;t2"] [--names "n1;n2"]
@@ -17,55 +14,31 @@ python acs_config.py copy <from-env> <to-env> [--dir D] [--types ...] [--names .
 python acs_config.py doc [--dir D]
 ~~~
 
-The command writes `apps.csv` beside `README.md`; list cells in its `read` and
-`write` columns use `;`. Place it in an app's `lookups/` folder and query it
-with `| inputlookup apps.csv`.
+## Options
 
-An empty filter or all selects every type or name. The push --delete option
-allows live-only objects to be deleted. Review the plan before enabling it.
+- `--dir D` sets the config directory.
+- `--types` takes type names separated by `;`. `all` or an empty value selects every type.
+- `--names` takes stanza names separated by `;`. `all` or an empty value selects every name.
+- `--check` fails a plan when differences exist.
+- `--delete` lets a push delete objects that exist only in the stack.
 
 ## Pipeline parameters
 
-- Environment: all, or one name from environments.toml. Pull runs the
-  environments in turn, prod first. Push runs one deployment job per
-  environment.
-- Action: plan, pull, or push.
-- Object types: all, or semicolon-separated names. See [Object types](/Reference/Object-types).
-- Object names: all, or semicolon-separated stanza names.
-- Check: fail a plan when differences exist.
-- Delete: removes objects that exist only in the stack. Push only. Deleting an
-  index deletes its data.
+- `environment`: `all`, or one name from `environments.toml`.
+- `action`: `plan`, `pull` or `push`.
+- `types`: `all`, or type names separated by `;`. See [Object types](/Reference/Object-types).
+- `names`: `all`, or stanza names separated by `;`.
+- `check`: fails the plan when differences exist.
+- `delete`: removes objects that exist only in the stack. Push only. See
+  [Delete live-only objects](/What-to-run/Delete-live-only-objects).
 
 ## Environment variables
 
-- STACK_TOKEN is used when set; otherwise the tool uses ACS_TOKEN.
-- SPLUNK_STACK names the stack.
-- SPLUNK_SEARCH_HEAD is optional and is ignored when empty or unresolved.
-- SPLUNKBASE_USERNAME and SPLUNKBASE_PASSWORD are used only when a Splunkbase
-  app change is pushed.
+- `STACK_TOKEN` is used when set. Otherwise the tool uses `ACS_TOKEN`. The pipeline sets `STACK_TOKEN` from the
+  `ACS_TOKEN` variable.
+- `SPLUNK_STACK` names the stack.
+- `SPLUNK_SEARCH_HEAD` is optional and is ignored when empty or unresolved.
+- `SPLUNKBASE_USERNAME` and `SPLUNKBASE_PASSWORD` are used only when a Splunkbase app change is pushed.
 
-The authorization token is sent in the ACS Bearer header. It belongs in a
-secret variable group or the local environment, not in a TOML file.
-
-## Pipeline actions
-
-- plan compares repository settings with live settings.
-- pull updates the files for an environment. The pipeline opens a pull request
-  when files change.
-- push applies repository settings through a deployment job on environment
-  `splunk-<env>`. Any approval configured on that environment gates the job.
-  The example pipeline does not push on a commit or pull request.
-- copy sets the target environment overrides in the files to match the source,
-  without calling ACS.
-- doc renders the configuration documentation.
-
-## Related
-
-- [File format](/Reference/File-format)
-- [Copy between environments](/Reference/Copy-between-environments)
-- [Troubleshooting](/Troubleshooting)
-
----
-
-[< Previous: File format](/Reference/File-format) |
-[Next: Object types >](/Reference/Object-types)
+The authorization token is sent in the ACS Bearer header. The variables are set in the variable groups described on
+[Access and tokens](/Setup/Access-and-tokens).

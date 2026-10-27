@@ -1,14 +1,10 @@
-# Step 7: Create environments
+# Create environments
 
-[Home](/Home) > [Getting started](/Getting-started) > Create environments
+One time. Done at setup; you should not need this again.
 
-[[_TOC_]]
+This page creates the `splunk-nonprod` and `splunk-prod` environments, and adds an approval check to `splunk-prod`.
 
-This page creates pipeline environments and their deployment approval.
-
-**Where:** **Pipelines → Environments**
-
-**Do:**
+## Steps
 
 1. Select **Pipelines → Environments**.
 2. Select **New environment**.
@@ -27,17 +23,7 @@ This page creates pipeline environments and their deployment approval.
 15. Add the approver who must approve prod pushes.
 16. Select **Create**.
 
-**Verify:**
+## Verify
 
 1. Confirm both `splunk-nonprod` and `splunk-prod` are listed.
 2. Confirm `splunk-prod` lists an **Approvals** check.
-
-## Related
-
-- [Getting started](/Getting-started)
-- [Commands](/Reference/Commands)
-
----
-
-[< Previous: Build validation](/Getting-started/Add-build-validation) |
-[Next: Pull environments >](/Getting-started/Pull-environments)

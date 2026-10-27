@@ -1,20 +1,10 @@
 # Home
 
-[Home](/Home) > Home
+This wiki explains how to run the ACS configuration tool through its Azure DevOps pipeline against Splunk Cloud stacks.
+Complete the one-time setup before the first run, then pick each task from What to run.
 
-[[_TOC_]]
-
-This page maps common tasks to setup and reference pages.
-
-| Task | Page |
-| --- | --- |
-| Set up the repositories and pipeline | [Getting started](/Getting-started) |
-| Understand defaults and overrides | [File format](/Reference/File-format) |
-| Run a CLI command | [Commands](/Reference/Commands) |
-| Check what data is stored | [Object types](/Reference/Object-types) |
-| Copy settings between environments | [Copy between environments](/Reference/Copy-between-environments) |
-| Fix an ACS or PR error | [Troubleshooting](/Troubleshooting) |
-
----
-
-[Next: Getting started >](/Getting-started)
+- [What to run](/What-to-run): the task chooser, with the parameters for each task.
+- [Setup](/Setup): one-time steps for the repos, access, pipeline and schedule.
+- [Reference](/Reference): file format, command syntax, pipeline parameters and object types.
+- [Troubleshooting](/Troubleshooting): fixes for ACS and pull request errors.
+- [GitHub Actions outlook](/GitHub-Actions-outlook): how the pipeline would map to GitHub Actions.

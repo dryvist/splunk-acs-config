@@ -1,36 +1,21 @@
 # Pull request permission
 
-[Home](/Home) > [Troubleshooting](/Troubleshooting) > Pull request permission
-
-[[_TOC_]]
-
-This page fixes permission errors when publishing a pull request.
+This page fixes HTTP 403 errors when the pull step publishes a pull request.
 
 ## Symptom
 
-The pipeline's pull request step receives HTTP 403 after pushing its
-acs-pull branch.
+The pipeline's pull request step receives HTTP 403 after pushing its `acs-pull` branch.
 
 ## Cause
 
-The identity `<project>` Build Service (`<org>`) lacks Contribute to
-pull requests on the private config repo.
+The identity `<project>` Build Service (`<org>`) lacks Contribute to pull requests on the config repo.
 
 ## Action
 
-Grant that identity Contribute to pull requests on the private config repo,
-then rerun the pull action.
+1. Grant that identity Contribute to pull requests on the config repo. See
+   [Grant repository permissions](/Setup/Grant-repository-permissions).
+2. Rerun the pull action. See [Pull](/What-to-run/Pull).
 
 ## Verify
 
-The rerun creates a pull request targeting the repo's main branch.
-
-## Related
-
-- [Repository permissions](/Getting-started/Grant-repository-permissions)
-- [Pull environments](/Getting-started/Pull-environments)
-
----
-
-[< Previous: Built-in roles](/Troubleshooting/Built-in-roles) |
-[Next: Only live objects >](/Troubleshooting/Only-live-objects)
+The rerun creates a pull request targeting the repo's `main` branch.

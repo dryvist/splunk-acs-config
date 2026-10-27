@@ -318,6 +318,14 @@ class PlanTests(ACSTestCase):
         self.assertEqual(code, 0)
         self.assertEqual(out.splitlines()[-1], "NO DIFFERENCES")
 
+    def test_semicolon_separated_types_select_both(self):
+        (self.root / "objects/roles.toml").write_text("[analyst]\npush = true\n", encoding="utf-8")
+        fake = FakeACS({("GET", "/indexes"): {"indexes": []},
+                        ("GET", "/roles"): {"roles": []}})
+        code, _, err = self.run_cli(fake, "plan", "prod", "--types", "indexes;roles")
+        self.assertEqual(code, 0, err)
+        self.assertEqual({call[1] for call in fake.calls if call[0] == "GET"}, {"/indexes", "/roles"})
+
     def test_object_push_flag_overrides_type_default(self):
         (self.root / "objects/roles.toml").write_text('[analyst]\npush = true\n')
         indexes = self.root / "objects/indexes.toml"
@@ -334,7 +342,7 @@ class PlanTests(ACSTestCase):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [
             index("shared", searchableDays=170), index("pan"), index("extra")]}})
         code, out, _ = self.run_cli(fake, "plan", "prod", "--types", "indexes",
-                                    "--names", "shared pan extra")
+                                    "--names", "shared;pan;extra")
         self.assertEqual(code, 0)
         self.assertEqual(out.splitlines(), [
             "indexes (repo vs prod live)",
@@ -697,8 +705,8 @@ class DocTests(ACSTestCase):
             rows = list(csv.reader(file))
         self.assertEqual(rows, [
             ["env", "app", "version", "read", "write", "owner"],
-            ["nonprod", "sample_app", "", "cap-a cap-b", "sc_admin", "owner"],
-            ["prod", "sample_app", "", "cap-a cap-b", "sc_admin", "owner"],
+            ["nonprod", "sample_app", "", "cap-a;cap-b", "sc_admin", "owner"],
+            ["prod", "sample_app", "", "cap-a;cap-b", "sc_admin", "owner"],
         ])
 
 

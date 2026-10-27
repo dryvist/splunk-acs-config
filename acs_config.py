@@ -239,7 +239,7 @@ def env_types(envs, env):
 
 
 def select_types(raw, allowed):
-    chosen = list(TYPES) if raw.strip() in ("", "all") else raw.split()
+    chosen = list(TYPES) if raw.strip() in ("", "all") else raw.replace(";", " ").split()
     unknown = [t for t in chosen if t not in TYPES]
     if unknown:
         raise ACSConfigError(f"unknown type: {' '.join(unknown)}")
@@ -247,7 +247,7 @@ def select_types(raw, allowed):
 
 
 def select_names(raw):
-    return None if raw.strip() in ("", "all") else set(raw.split())
+    return None if raw.strip() in ("", "all") else set(raw.replace(";", " ").split())
 
 
 def split_table(path, envs, name, table):
@@ -818,7 +818,7 @@ def write_doc(root):
                      app.get("write"), app.get("owner"))
             sections.append("| " + " | ".join(fmt(value) if value is not None else ""
                                                    for value in cells) + " |")
-            app_rows.append([" ".join(map(str, value)) if isinstance(value, list) else value
+            app_rows.append([";".join(map(str, value)) if isinstance(value, list) else value
                              for value in cells])
     output = io.StringIO(newline="")
     csv.writer(output, lineterminator="\n").writerows(app_rows)

@@ -22,7 +22,7 @@ parameters:
       - pull
       - push
   - name: types
-    displayName: Object types - all, or space-separated; see wiki Object types
+    displayName: Object types - all, or ';'-separated; see wiki Object types
     type: string
     default: all
   - name: check
@@ -30,7 +30,7 @@ parameters:
     type: boolean
     default: false
   - name: names
-    displayName: Object names - all, or space-separated stanza names (index, token, feature, port, role or app)
+    displayName: Object names - all, or ';'-separated stanza names (index, token, feature, port, role or app)
     type: string
     default: all
   - name: delete

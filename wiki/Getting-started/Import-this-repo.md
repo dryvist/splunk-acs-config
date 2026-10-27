@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page imports the tools repository into the code hosting project.
+
 **Where:** **Repos → Files → repository selector → Import repository**
 
 **Do:**

@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page troubleshoots failed ACS authentication and authorization.
+
 ## HTTP 401
 
 Check that the ACS token is valid and intended for the ACS audience. Confirm

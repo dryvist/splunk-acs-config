@@ -4,16 +4,7 @@
 
 [[_TOC_]]
 
-This repository provides a TOML file layout, a Python command-line tool, and
-an Azure Pipelines template for managing Splunk Cloud ACS settings.
-
-| Section | What it covers |
-| --- | --- |
-| [Getting started](/Getting-started) | Ten setup steps. |
-| [Reference](/Reference) | Files, commands, object types, and copying. |
-| [Troubleshooting](/Troubleshooting) | ACS and pipeline errors. |
-
-## Find a task
+This page maps common tasks to setup and reference pages.
 
 | Task | Page |
 | --- | --- |
@@ -23,11 +14,6 @@ an Azure Pipelines template for managing Splunk Cloud ACS settings.
 | Check what data is stored | [Object types](/Reference/Object-types) |
 | Copy settings between environments | [Copy between environments](/Reference/Copy-between-environments) |
 | Fix an ACS or PR error | [Troubleshooting](/Troubleshooting) |
-
-## Related
-
-- [Getting started](/Getting-started)
-- [Reference](/Reference)
 
 ---
 

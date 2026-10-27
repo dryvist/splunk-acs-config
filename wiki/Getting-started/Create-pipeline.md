@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page creates a pipeline from the example YAML.
+
 **Where:** **Pipelines → New pipeline**
 
 **Do:**

@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page lists the managed object types, their files, and their ACS fields.
+
 | Type | File | ACS resource | Pushed by default |
 | --- | --- | --- | --- |
 | indexes | `objects/indexes.toml` | /indexes | yes |
@@ -15,11 +17,11 @@
 | roles | `objects/roles.toml` | /roles | no |
 | limits | `objects/limits.toml` | /limits | no |
 | app-permissions | `objects/app-permissions.toml` | /permissions/apps | yes |
+| private-apps | `objects/private-apps.toml` | /apps/victoria?splunkbase=false&count=0 | no |
 | splunkbase-apps | `objects/splunkbase-apps.toml` | /apps/victoria?splunkbase=true&count=0 | yes |
 
-A type marked no is pulled and documented. Plan and push skip it unless an
-object or the `[default]` stanza sets `push = true`. See
-[File format](/Reference/File-format).
+A type marked no is not pushed by default. See [File format](/Reference/File-format)
+for `push` settings.
 
 ## Stanza keys and stored data
 
@@ -31,7 +33,9 @@ object or the `[default]` stanza sets `push = true`. See
 - roles uses the role name and stores editable role fields.
 - limits uses the stanza name and stores editable settings. ACS has no delete
   endpoint for limits.
-- app-permissions uses the app name and stores read and write permissions.
+- app-permissions uses the app name and stores read and write permissions plus
+  the repository-only `owner` value.
+- private-apps uses the app name and stores its installed version.
 - splunkbase-apps uses the app name and stores its id, version, and license URL.
 
 ## Splunkbase apps
@@ -48,10 +52,8 @@ own `SPLUNK_SEARCH_HEAD`.
 
 ## Sharing
 
-Knowledge object sharing (private, app, and global) has no ACS API. Set it in
-each app's `metadata/default.meta` and deploy it with the app. ACS manages only
-app-level `read` and `write` roles. For built-in apps, set only those roles
-here.
+App sharing (private, app, global, and `export = system`) is not in ACS. Set it
+in each app's `metadata/default.meta` and deploy it with the app.
 
 ## Data not stored
 

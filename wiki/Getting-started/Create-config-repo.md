@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page creates the repository that stores the TOML configuration.
+
 **Where:** **Repos → Files → repository selector → New repository**
 
 **Do:**

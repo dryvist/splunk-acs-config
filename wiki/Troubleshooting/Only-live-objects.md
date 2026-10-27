@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page handles objects that exist in ACS but not in files.
+
 ## Symptom
 
 Plan reports ONLY LIVE for an object that is present in ACS but absent from

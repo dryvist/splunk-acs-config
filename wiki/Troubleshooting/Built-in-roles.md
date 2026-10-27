@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page explains why built-in role changes do not appear in plans.
+
 ## Symptom
 
 A plan does not show a change for a built-in role, or a built-in role

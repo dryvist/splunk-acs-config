@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page grants the pipeline identity access to the configuration repository.
+
 **Where:** **Project settings → Repositories → `<config-repo>` → Security**
 
 **Do:**

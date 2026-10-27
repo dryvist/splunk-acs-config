@@ -79,9 +79,14 @@ TYPES = {
         "post": "/limits/{key}",
     },
     "app-permissions": {
-        "key": "name", "fields": ("name", "read", "write"), "patch_fields": ("read", "write"),
+        "key": "name", "fields": ("name", "read", "write", "owner"),
+        "patch_fields": ("read", "write"), "repo_only": ("owner",),
         "list": "/permissions/apps", "items": ("apps",), "paged": True,
         "patch": "/permissions/apps/{key}", "push": True,
+    },
+    "private-apps": {
+        "key": "name", "fields": ("name", "version"),
+        "list": "/apps/victoria?splunkbase=false&count=0", "items": ("apps",), "push": False,
     },
     "splunkbase-apps": {
         "key": "name", "fields": ("name", "id", "version", "license"), "patch_fields": ("version",),
@@ -359,6 +364,8 @@ def normalize(t, item):
         item = {**item, "importedRoles": (item.get("imported") or {}).get("roles")}
     elif t == "splunkbase-apps":
         item = {"name": item["name"], "id": item.get("splunkbaseID"), "version": item["version"]}
+    elif t == "private-apps":
+        item = {"name": item["name"], "version": item["version"]}
     elif t.startswith("outbound-ports"):
         item = {"port": item["port"], "subnets": item.get("destinationRanges")}
     fields = type_fields(t, item)
@@ -571,7 +578,9 @@ def wait_converged(root, env, c, allow_delete):
 
 
 def plan_command(root, env, types, names):
-    show(collect(root, env, types, names), types, env)
+    changes = collect(root, env, types, names)
+    show(changes, types, env)
+    return changes
 
 
 def push_command(root, env, types, names, allow_delete):
@@ -772,13 +781,40 @@ def write_doc(root):
              "| Type | File | Pushed by default | " + " | ".join(envs) + " |",
              "|" + " --- |" * (len(envs) + 3)]
     sections = []
+    loaded = {}
     for t in TYPES:
         defaults, objects = load_type(root, t, envs)
+        loaded[t] = (defaults, objects)
         counts = [str(sum(in_env(raw, env) for raw in objects.values()))
                   if t in env_types(envs, env) else "-" for env in envs]
         pushed_by_default = "yes" if pushed(t, defaults, {}, "") else "no"
         lines.append(f"| {t} | `objects/{t}.toml` | {pushed_by_default} | " + " | ".join(counts) + " |")
         sections += ["", f"## {t}", ""] + default_lines(t, defaults)
+    sections += ["", "## apps", "", "| env | app | version | read | write | owner |",
+                 "| --- | --- | --- | --- | --- | --- |"]
+    for env in envs:
+        allowed = env_types(envs, env)
+        if "app-permissions" not in allowed:
+            continue
+        defaults, permissions = loaded["app-permissions"]
+        versions = {}
+        for t in ("private-apps", "splunkbase-apps"):
+            if t not in allowed:
+                continue
+            type_defaults, objects = loaded[t]
+            for name, raw in objects.items():
+                if in_env(raw, env) and name not in versions:
+                    version = merged(t, type_defaults, raw, env).get("version")
+                    if version is not None:
+                        versions[name] = version
+        for name, raw in sorted(permissions.items()):
+            if not in_env(raw, env):
+                continue
+            app = merged("app-permissions", defaults, raw, env)
+            cells = (env, app["name"], versions.get(name), app.get("read"),
+                     app.get("write"), app.get("owner"))
+            sections.append("| " + " | ".join(fmt(value) if value is not None else ""
+                                                   for value in cells) + " |")
     store(root, root / "README.md", "\n".join(lines + sections).rstrip() + "\n")
 
 
@@ -802,6 +838,8 @@ def build_parser():
     for name in ("pull", "plan"):
         sub = commands.add_parser(name)
         sub.add_argument("env")
+        if name == "plan":
+            sub.add_argument("--check", action="store_true")
         add_common(sub)
     push = commands.add_parser("push")
     push.add_argument("env")
@@ -834,7 +872,9 @@ def main(argv=None):
         if args.command == "pull":
             pull_command(root, envs, args.env, types, names)
         elif args.command == "plan":
-            plan_command(root, args.env, types, names)
+            changes = plan_command(root, args.env, types, names)
+            if args.check and changes:
+                return 1
         else:
             push_command(root, args.env, types, names, args.delete)
     except (ACSConfigError, OSError, ValueError, KeyError) as err:

@@ -220,6 +220,18 @@ class PullTests(ACSTestCase):
         self.assertEqual(self.read("objects/app-permissions.toml")["my_app"],
                          {"environments": ["prod"], "read": ["*"], "write": ["sc_admin"]})
 
+    def test_app_permissions_pull_keeps_owner(self):
+        (self.root / "objects/app-permissions.toml").write_text(
+            '[my_app]\nowner = "team"\nread = ["user"]\nwrite = ["user"]\n')
+        fake = FakeACS({("GET", "/permissions/apps"):
+                        {"apps": [{"name": "my_app", "perms": {"read": ["*"], "write": ["sc_admin"]}}]}})
+        code, _, err = self.run_cli(fake, "pull", "prod", "--types", "app-permissions", "--names", "my_app")
+        self.assertEqual(code, 0, err)
+        defaults, objects = acs_config.load_type(
+            self.root, "app-permissions", acs_config.load_environments(self.root))
+        self.assertEqual(acs_config.merged("app-permissions", defaults, objects["my_app"], "prod"),
+                         {"name": "my_app", "owner": "team", "read": ["*"], "write": ["sc_admin"]})
+
     def test_splunkbase_apps_pull_keeps_license(self):
         (self.root / "objects/splunkbase-apps.toml").write_text(
             '[my_app]\nid = "old-id"\nversion = "0.9"\nlicense = "my-license"\n\n'
@@ -236,6 +248,17 @@ class PullTests(ACSTestCase):
                          {"name": "my_app", "id": "1234", "version": "1.0", "license": "my-license"})
         self.assertEqual(acs_config.merged("splunkbase-apps", defaults, objects["hand_set"], "prod"),
                          {"name": "hand_set", "version": "1.0", "license": "hand-set-license"})
+
+    def test_private_apps_pull_normalizes_name_and_version(self):
+        fake = FakeACS({("GET", "/apps/victoria"): {"apps": [
+            {"name": "private_app", "version": "1.2.3"},
+        ]}})
+        code, _, err = self.run_cli(fake, "pull", "prod", "--types", "private-apps")
+        self.assertEqual(code, 0, err)
+        defaults, objects = acs_config.load_type(
+            self.root, "private-apps", acs_config.load_environments(self.root))
+        self.assertEqual(acs_config.merged("private-apps", defaults, objects["private_app"], "prod"),
+                         {"name": "private_app", "version": "1.2.3"})
 
     def test_limits_pull_keeps_only_nondefault_settings(self):
         (self.root / "objects/limits.toml").write_text('[default]\nmax_count = "10"\n')
@@ -324,6 +347,20 @@ class PlanTests(ACSTestCase):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("shared", searchableDays=180), index("pan")]}})
         _, out, _ = self.run_cli(fake, "plan", "prod", "--types", "indexes", "--names", "shared pan")
         self.assertIn("NO DIFFERENCES", out.splitlines())
+
+    def test_plan_check_fails_on_differences(self):
+        fake = FakeACS({("GET", "/indexes"): {"indexes": [index("shared", searchableDays=170)]}})
+        code, out, err = self.run_cli(fake, "plan", "prod", "--types", "indexes",
+                                      "--names", "shared", "--check")
+        self.assertEqual(code, 1, err)
+        self.assertIn("1 change(s)", out)
+
+    def test_plan_check_passes_without_differences(self):
+        fake = FakeACS({("GET", "/indexes"): {"indexes": [index("shared", searchableDays=180)]}})
+        code, out, err = self.run_cli(fake, "plan", "prod", "--types", "indexes",
+                                      "--names", "shared", "--check")
+        self.assertEqual(code, 0, err)
+        self.assertIn("NO DIFFERENCES", out)
 
 
 class PushTests(ACSTestCase):

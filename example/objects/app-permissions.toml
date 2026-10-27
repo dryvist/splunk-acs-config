@@ -1,5 +1,11 @@
 [default]
 
-[Splunk_TA_paloalto_networks]
+[sample_app]
+owner = "<owner>"
+read = ["*"]
+write = ["sc_admin"]
+
+[sample_private_app]
+owner = "<owner>"
 read = ["*"]
 write = ["sc_admin"]

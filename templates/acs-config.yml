@@ -27,6 +27,9 @@ parameters:
   - name: delete
     type: boolean
     default: false
+  - name: check
+    type: boolean
+    default: false
 
 jobs:
   - ${{ each env in parameters.environments }}:
@@ -42,6 +45,7 @@ jobs:
                     parameters:
                       env: ${{ env }}
                       action: plan
+                      check: ${{ parameters.check }}
           - ${{ elseif eq(parameters.action, 'push') }}:
               - deployment: push_${{ replace(env, '-', '_') }}
                 displayName: Push ${{ env }}
@@ -77,5 +81,6 @@ jobs:
                     parameters:
                       env: ${{ env }}
                       action: ${{ parameters.action }}
+                      check: ${{ parameters.check }}
                       types: ${{ parameters.types }}
                       names: ${{ parameters.names }}

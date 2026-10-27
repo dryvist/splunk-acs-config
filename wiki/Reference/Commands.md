@@ -10,14 +10,16 @@ Run the tool with Python 3.11 or later. Commands use the current directory
 unless you provide --dir.
 
 ~~~text
-python acs_config.py pull <env> [--dir D] [--types "t1 t2"] [--names "n1 n2"]
+python acs_config.py pull <env> [--dir D] [--types "t1;t2"] [--names "n1;n2"]
 python acs_config.py plan <env> [--check] [--dir D] [--types ...] [--names ...]
 python acs_config.py push <env> [--dir D] [--types ...] [--names ...] [--delete]
 python acs_config.py copy <from-env> <to-env> [--dir D] [--types ...] [--names ...]
 python acs_config.py doc [--dir D]
 ~~~
 
-The command writes `apps.csv` beside `README.md`; place it in an app's `lookups/` folder and query it with `| inputlookup apps.csv`.
+The command writes `apps.csv` beside `README.md`; list cells in its `read` and
+`write` columns use `;`. Place it in an app's `lookups/` folder and query it
+with `| inputlookup apps.csv`.
 
 An empty filter or all selects every type or name. The push --delete option
 allows live-only objects to be deleted. Review the plan before enabling it.
@@ -28,8 +30,8 @@ allows live-only objects to be deleted. Review the plan before enabling it.
   environments in turn, prod first. Push runs one deployment job per
   environment.
 - Action: plan, pull, or push.
-- Object types: all, or space-separated names. See [Object types](/Reference/Object-types).
-- Object names: all, or space-separated stanza names.
+- Object types: all, or semicolon-separated names. See [Object types](/Reference/Object-types).
+- Object names: all, or semicolon-separated stanza names.
 - Check: fail a plan when differences exist.
 - Delete: removes objects that exist only in the stack. Push only. Deleting an
   index deletes its data.

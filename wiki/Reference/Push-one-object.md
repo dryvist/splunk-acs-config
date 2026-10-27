@@ -17,8 +17,9 @@ one outbound port, one role, or one app's permissions.
 | Role `pan_analyst` | `roles` | `pan_analyst` |
 | App permissions | `app-permissions` | the app folder name |
 
-Separate several names with spaces, for example `pan wineventlog`. Each name is
-a stanza name in `objects/<type>.toml`.
+To select several names, use the separator documented in
+[Commands](/Reference/Commands). Each name is a stanza name in
+`objects/<type>.toml`.
 
 ## Steps
 

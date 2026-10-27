@@ -30,7 +30,7 @@ steps:
       - script: python "$(Pipeline.Workspace)/tools/pipeline/open_pr.py" branch
         displayName: Check out the pull branch for this run
         workingDirectory: $(Pipeline.Workspace)/config
-  - script: python "$(Pipeline.Workspace)/tools/acs_config.py" ${{ parameters.action }} ${{ parameters.env }} --dir "$(Pipeline.Workspace)/config" --types "${{ parameters.types }}" --names "${{ parameters.names }}" ${{ iif(parameters.delete, '--delete', '') }} ${{ iif(and(eq(parameters.action, 'plan'), parameters.check), '--check', '') }}
+  - script: python "$(Pipeline.Workspace)/tools/acs_config.py" ${{ parameters.action }} ${{ parameters.env }} --dir "$(Pipeline.Workspace)/config" --types "${{ parameters.types }}" --names "${{ parameters.names }}" ${{ iif(parameters.delete, '--delete', '') }} ${{ iif(and(eq(parameters.action, 'plan'), or(parameters.check, eq(variables['Build.Reason'], 'Schedule'))), '--check', '') }}
     displayName: ${{ iif(eq(parameters.action, 'plan'), format('Plan {0} (repo vs live)', parameters.env), iif(eq(parameters.action, 'pull'), format('Pull {0} live into repo', parameters.env), format('Push repo to {0}', parameters.env))) }}
     env:
       SPLUNK_STACK: $(SPLUNK_STACK)

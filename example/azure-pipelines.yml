@@ -1,6 +1,13 @@
 # PR validation runs through a main-branch Build validation policy.
 trigger: none
 
+schedules:
+  - cron: '0 0 * * *'
+    branches:
+      include:
+        - main
+    always: true
+
 parameters:
   - name: environment
     displayName: Environment - all, or one name from environments.toml (pull runs envs in turn, push one job per env)

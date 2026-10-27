@@ -2,6 +2,7 @@
 
 import contextlib
 import copy
+import csv
 import io
 import os
 import shutil
@@ -685,6 +686,20 @@ class DocTests(ACSTestCase):
         self.assertIn("- datatype: event (Splunk default)", readme)
         self.assertIn("- searchableDays: 30 (nonprod, [default])", readme)
         self.assertNotIn("| shared |", readme)
+
+    def test_doc_writes_apps_csv_rows(self):
+        (self.root / "objects/app-permissions.toml").write_text(
+            '[default]\nread = ["cap-a", "cap-b"]\nwrite = ["sc_admin"]\n\n'
+            '[sample_app]\nowner = "owner"\n', encoding="utf-8")
+        code, _, _ = self.run_cli(FakeACS(), "doc")
+        self.assertEqual(code, 0)
+        with (self.root / "apps.csv").open(newline="", encoding="utf-8") as file:
+            rows = list(csv.reader(file))
+        self.assertEqual(rows, [
+            ["env", "app", "version", "read", "write", "owner"],
+            ["nonprod", "sample_app", "", "cap-a cap-b", "sc_admin", "owner"],
+            ["prod", "sample_app", "", "cap-a cap-b", "sc_admin", "owner"],
+        ])
 
 
 class CLITests(ACSTestCase):

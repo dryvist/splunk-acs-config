@@ -2,6 +2,8 @@
 """Pull, plan, push, copy and document Splunk Cloud ACS settings stored as TOML files."""
 
 import argparse
+import csv
+import io
 import json
 import os
 import re
@@ -792,6 +794,7 @@ def write_doc(root):
         sections += ["", f"## {t}", ""] + default_lines(t, defaults)
     sections += ["", "## apps", "", "| env | app | version | read | write | owner |",
                  "| --- | --- | --- | --- | --- | --- |"]
+    app_rows = [["env", "app", "version", "read", "write", "owner"]]
     for env in envs:
         allowed = env_types(envs, env)
         if "app-permissions" not in allowed:
@@ -815,6 +818,11 @@ def write_doc(root):
                      app.get("write"), app.get("owner"))
             sections.append("| " + " | ".join(fmt(value) if value is not None else ""
                                                    for value in cells) + " |")
+            app_rows.append([" ".join(map(str, value)) if isinstance(value, list) else value
+                             for value in cells])
+    output = io.StringIO(newline="")
+    csv.writer(output, lineterminator="\n").writerows(app_rows)
+    store(root, root / "apps.csv", output.getvalue())
     store(root, root / "README.md", "\n".join(lines + sections).rstrip() + "\n")
 
 

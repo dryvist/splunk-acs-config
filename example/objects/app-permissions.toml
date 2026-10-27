@@ -1,11 +1,10 @@
 [default]
+write = ["sc_admin"]
 
 [sample_app]
 owner = "platform-team"
 read = ["*"]
-write = ["sc_admin"]
 
 [sample_private_app]
 owner = "platform-team"
 read = ["*"]
-write = ["sc_admin"]

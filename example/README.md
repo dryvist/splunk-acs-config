@@ -70,7 +70,7 @@ Each file in `objects/` holds one object type. `[default]` holds shared values; 
 
 | env | app | version | read | write | owner |
 | --- | --- | --- | --- | --- | --- |
-| nonprod | sample_app | 1.0.0 | * | sc_admin | <owner> |
-| nonprod | sample_private_app | 1.0.0 | * | sc_admin | <owner> |
-| prod | sample_app | 1.0.0 | * | sc_admin | <owner> |
-| prod | sample_private_app | 1.0.0 | * | sc_admin | <owner> |
+| nonprod | sample_app | 1.0.0 | * | sc_admin | platform-team |
+| nonprod | sample_private_app | 1.0.0 | * | sc_admin | platform-team |
+| prod | sample_app | 1.0.0 | * | sc_admin | platform-team |
+| prod | sample_private_app | 1.0.0 | * | sc_admin | platform-team |

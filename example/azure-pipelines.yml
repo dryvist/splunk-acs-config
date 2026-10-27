@@ -15,9 +15,13 @@ parameters:
       - pull
       - push
   - name: types
-    displayName: Object types - all, or space-separated from indexes hec-tokens ip-allowlists ip-allowlists-v6 outbound-ports outbound-ports-v6 roles app-permissions splunkbase-apps
+    displayName: Object types - all, or space-separated; see wiki Object types
     type: string
     default: all
+  - name: check
+    displayName: Fail plan when differences are found
+    type: boolean
+    default: false
   - name: names
     displayName: Object names - all, or space-separated stanza names (index, token, feature, port, role or app)
     type: string
@@ -43,6 +47,7 @@ extends:
     environment: ${{ parameters.environment }}
     action: ${{ parameters.action }}
     types: ${{ parameters.types }}
+    check: ${{ parameters.check }}
     names: ${{ parameters.names }}
     delete: ${{ parameters.delete }}
     pool:

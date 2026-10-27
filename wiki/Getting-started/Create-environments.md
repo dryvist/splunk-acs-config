@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page creates pipeline environments and their deployment approval.
+
 **Where:** **Pipelines → Environments**
 
 **Do:**

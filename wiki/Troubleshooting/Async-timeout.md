@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page checks changes that remain pending after ACS accepts a write.
+
 ## Symptom
 
 Push reports `timed out waiting for <type>/<key> to match the files`. ACS

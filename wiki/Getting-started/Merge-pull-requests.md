@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page reviews and merges the pull requests from the initial pull.
+
 **Where:** **Repos → Pull requests**
 
 **Do:**

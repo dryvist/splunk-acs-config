@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page fixes permission errors when publishing a pull request.
+
 ## Symptom
 
 The pipeline's pull request step receives HTTP 403 after pushing its

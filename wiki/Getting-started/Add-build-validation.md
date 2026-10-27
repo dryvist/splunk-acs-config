@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page configures build validation for the configuration branch.
+
 **Where:** **Repos → Branches**
 
 **Do:**

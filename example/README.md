@@ -12,7 +12,8 @@ Each file in `objects/` holds one object type. `[default]` holds shared values; 
 | outbound-ports-v6 | `objects/outbound-ports-v6.toml` | no | 0 | 0 |
 | roles | `objects/roles.toml` | no | 1 | 1 |
 | limits | `objects/limits.toml` | no | 0 | 0 |
-| app-permissions | `objects/app-permissions.toml` | yes | 1 | 1 |
+| app-permissions | `objects/app-permissions.toml` | yes | 2 | 2 |
+| private-apps | `objects/private-apps.toml` | no | 1 | 1 |
 | splunkbase-apps | `objects/splunkbase-apps.toml` | yes | 1 | 1 |
 
 ## indexes
@@ -57,6 +58,19 @@ Each file in `objects/` holds one object type. `[default]` holds shared values; 
 
 - none
 
+## private-apps
+
+- none
+
 ## splunkbase-apps
 
 - none
+
+## apps
+
+| env | app | version | read | write | owner |
+| --- | --- | --- | --- | --- | --- |
+| nonprod | sample_app | 1.0.0 | * | sc_admin | <owner> |
+| nonprod | sample_private_app | 1.0.0 | * | sc_admin | <owner> |
+| prod | sample_app | 1.0.0 | * | sc_admin | <owner> |
+| prod | sample_private_app | 1.0.0 | * | sc_admin | <owner> |

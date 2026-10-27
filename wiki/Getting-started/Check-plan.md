@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page checks a plan for each environment.
+
 **Where:** **Pipelines → the config pipeline → Run pipeline**
 
 **Do:**

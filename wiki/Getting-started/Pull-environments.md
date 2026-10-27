@@ -4,6 +4,8 @@
 
 [[_TOC_]]
 
+This page pulls live settings into the configuration files.
+
 **Where:** **Pipelines → the config pipeline → Run pipeline**
 
 **Do:**

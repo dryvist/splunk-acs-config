@@ -30,14 +30,20 @@ steps:
       - script: python "$(Pipeline.Workspace)/tools/pipeline/open_pr.py" branch
         displayName: Check out the pull branch for this run
         workingDirectory: $(Pipeline.Workspace)/config
-  - script: python "$(Pipeline.Workspace)/tools/acs_config.py" ${{ parameters.action }} ${{ parameters.env }} --dir "$(Pipeline.Workspace)/config" --types "${{ parameters.types }}" --names "${{ parameters.names }}" ${{ iif(parameters.delete, '--delete', '') }} ${{ iif(and(eq(parameters.action, 'plan'), or(parameters.check, eq(variables['Build.Reason'], 'Schedule'))), '--check', '') }}
-    displayName: ${{ iif(eq(parameters.action, 'plan'), format('Plan {0} (repo vs live)', parameters.env), iif(eq(parameters.action, 'pull'), format('Pull {0} live into repo', parameters.env), format('Push repo to {0}', parameters.env))) }}
+      - download: current
+        displayName: Download the live reads
+  - script: python "$(Pipeline.Workspace)/tools/acs_config.py" ${{ parameters.action }} ${{ parameters.env }} --dir "$(Pipeline.Workspace)/config" --types "${{ parameters.types }}" --names "${{ parameters.names }}" ${{ iif(parameters.delete, '--delete', '') }} ${{ iif(eq(parameters.action, 'fetch'), format('--out "$(Pipeline.Workspace)/live/{0}.json"', parameters.env), '') }} ${{ iif(eq(parameters.action, 'pull'), '--live-dir "$(Pipeline.Workspace)"', '') }} ${{ iif(and(eq(parameters.action, 'plan'), or(parameters.check, eq(variables['Build.Reason'], 'Schedule'))), '--check', '') }}
+    displayName: ${{ iif(eq(parameters.action, 'plan'), format('Plan {0} (repo vs live)', parameters.env), iif(eq(parameters.action, 'fetch'), format('Read {0} live from ACS', parameters.env), iif(eq(parameters.action, 'pull'), format('Pull {0} live reads into repo', parameters.env), format('Push repo to {0}', parameters.env)))) }}
     env:
       SPLUNK_STACK: $(SPLUNK_STACK)
       SPLUNK_SEARCH_HEAD: $(SPLUNK_SEARCH_HEAD)
       SPLUNKBASE_USERNAME: $(SPLUNKBASE_USERNAME)
       SPLUNKBASE_PASSWORD: $(SPLUNKBASE_PASSWORD)
       STACK_TOKEN: $(ACS_TOKEN)
+  - ${{ if eq(parameters.action, 'fetch') }}:
+      - publish: $(Pipeline.Workspace)/live
+        displayName: Publish the ${{ parameters.env }} live read
+        artifact: live-${{ parameters.env }}
   - ${{ if eq(parameters.action, 'pull') }}:
       - script: python "$(Pipeline.Workspace)/tools/pipeline/open_pr.py" changes
         displayName: Show ${{ parameters.env }} objects created, changed or deleted by this pull

@@ -7,7 +7,8 @@ This page lists the command syntax, options, pipeline parameters and environment
 Run the tool with Python 3.11 or later. Commands use the current directory unless you provide `--dir`.
 
 ~~~text
-python acs_config.py pull <env> [--dir D] [--types "t1;t2"] [--names "n1;n2"]
+python acs_config.py pull <env|all> [--dir D] [--types "t1;t2"] [--names "n1;n2"] [--live-dir D]
+python acs_config.py fetch <env> --out FILE [--dir D] [--types ...] [--names ...]
 python acs_config.py plan <env> [--check] [--dir D] [--types ...] [--names ...]
 python acs_config.py push <env> [--dir D] [--types ...] [--names ...] [--delete]
 python acs_config.py copy <from-env> <to-env> [--dir D] [--types ...] [--names ...]
@@ -21,6 +22,9 @@ python acs_config.py doc [--dir D]
 - `--names` takes stanza names separated by `;`. `all` or an empty value selects every name.
 - `--check` fails a plan when differences exist.
 - `--delete` lets a push delete objects that exist only in the stack.
+- `fetch` writes the live objects to `--out` as JSON and changes no files in the config directory.
+- `pull all` pulls every environment in reverse name order. `--live-dir D` reads `D/live-<env>/<env>.json` from
+  `fetch` instead of calling ACS.
 
 ## Pipeline parameters
 

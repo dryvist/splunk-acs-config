@@ -156,6 +156,24 @@ class PullTests(ACSTestCase):
         self.assertIn("\033[33mchanged objects/indexes.toml\033[0m", out)
         self.assertNotIn("retired", self.read("objects/indexes.toml"))
 
+    def test_fetch_then_pull_all_matches_a_live_pull(self):
+        fake = FakeACS({("GET", "/indexes"): {"indexes": [index("new"), index("shared", searchableDays=200)]}})
+        live_dir = self.root.parent / "live"
+        expected = self.root.parent / "expected"
+        shutil.copytree(self.root, expected)
+        for env in ("prod", "nonprod"):
+            out = live_dir / f"live-{env}" / f"{env}.json"
+            self.assertEqual(self.run_cli(fake, "fetch", env, "--types", "indexes", "--out", str(out))[0], 0)
+
+        def offline(*args, **kwargs):
+            raise AssertionError("pull --live-dir must not call ACS")
+
+        self.assertEqual(self.run_cli(offline, "pull", "all", "--types", "indexes", "--live-dir", str(live_dir))[0], 0)
+        pulled, self.root = self.read("objects/indexes.toml"), expected
+        for env in ("prod", "nonprod"):
+            self.run_cli(fake, "pull", env, "--types", "indexes")
+        self.assertEqual(pulled, self.read("objects/indexes.toml"))
+
     def test_new_object_keeps_only_differences_from_defaults(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("newidx")]}})
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes", "--names", "newidx")

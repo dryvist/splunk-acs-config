@@ -175,10 +175,29 @@ class PullTests(ACSTestCase):
         self.assertEqual(pulled, self.read("objects/indexes.toml"))
 
     def test_new_object_keeps_only_differences_from_defaults(self):
-        fake = FakeACS({("GET", "/indexes"): {"indexes": [index("newidx")]}})
+        fake = FakeACS({("GET", "/indexes"): {"indexes": [index("newidx", searchableDays=30)]}})
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes", "--names", "newidx")
         self.assertEqual(code, 0)
-        self.assertEqual(self.read("objects/indexes.toml")["newidx"], {"environments": ["prod"]})
+        self.assertEqual(self.read("objects/indexes.toml")["newidx"],
+                         {"searchableDays": 30, "environments": ["prod"]})
+
+    def test_new_all_default_index_is_not_pulled_or_planned(self):
+        fake = FakeACS({("GET", "/indexes"): {"indexes": [index("_internal"), index("itsi_summary")]}})
+        self.assertEqual(self.run_cli(fake, "pull", "prod", "--types", "indexes",
+                                      "--names", "_internal;itsi_summary")[0], 0)
+        self.assertNotIn("_internal", self.read("objects/indexes.toml"))
+        self.assertNotIn("itsi_summary", self.read("objects/indexes.toml"))
+        _, out, _ = self.run_cli(fake, "plan", "prod", "--types", "indexes", "--names", "_internal;itsi_summary")
+        self.assertIn("NO DIFFERENCES", out)
+
+    def test_unset_optional_field_is_not_written(self):
+        live = [index("a", searchableDays=30, splunkArchivalRetentionDays=0),
+                index("b", searchableDays=30, splunkArchivalRetentionDays=365), index("c", searchableDays=30)]
+        self.run_cli(FakeACS({("GET", "/indexes"): {"indexes": live}}), "pull", "prod", "--types", "indexes",
+                     "--names", "a;b;c")
+        text = (self.root / "objects/indexes.toml").read_text(encoding="utf-8")
+        self.assertNotIn("unset", text)
+        self.assertEqual(text.count("splunkArchivalRetentionDays"), 1)
 
     def test_changed_value_becomes_override(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("shared", searchableDays=200)]}})
@@ -205,12 +224,12 @@ class PullTests(ACSTestCase):
         envs = acs_config.load_environments(self.root)
         before_defaults, before = acs_config.load_type(self.root, "indexes", envs)
         live = [index("legacy"), index("pan"), index("retired"), index("shared", searchableDays=180),
-                index("newidx")]
+                index("newidx", searchableDays=30)]
         fake = FakeACS({("GET", "/indexes"): {"indexes": live}})
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes")
         self.assertEqual(code, 0)
         after_defaults, after = acs_config.load_type(self.root, "indexes", envs)
-        self.assertEqual(after["newidx"], {"environments": ["prod"], "name": "newidx"})
+        self.assertEqual(after["newidx"], {"environments": ["prod"], "name": "newidx", "searchableDays": 30})
         self.assertEqual(after_defaults, before_defaults)
         self.assertEqual(set(after) - {"newidx"}, set(before))
         for name, raw in before.items():
@@ -364,7 +383,7 @@ class PlanTests(ACSTestCase):
 
     def test_plan_prints_one_line_per_change(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [
-            index("shared", searchableDays=170), index("pan"), index("extra")]}})
+            index("shared", searchableDays=170), index("pan"), index("extra", searchableDays=30)]}})
         code, out, _ = self.run_cli(fake, "plan", "prod", "--types", "indexes",
                                     "--names", "shared;pan;extra")
         self.assertEqual(code, 0)
@@ -496,7 +515,7 @@ class PushTests(ACSTestCase):
         self.assertEqual([c[0] for c in fake.writes()], ["PATCH"])
 
     def test_extra_object_is_kept_without_delete_and_fails_the_check(self):
-        live = {"indexes": [index("shared", searchableDays=180), index("pan"), index("extra")]}
+        live = {"indexes": [index("shared", searchableDays=180), index("pan"), index("extra", searchableDays=30)]}
         fake = FakeACS({("GET", "/indexes"): live})
         code, out, err = self.run_cli(fake, "push", "prod", "--types", "indexes",
                                       "--names", "shared pan extra")
@@ -506,7 +525,7 @@ class PushTests(ACSTestCase):
         self.assertIn("1 differences remain after push", err)
 
     def test_delete_flag_deletes_extra_index_with_data_loss_line(self):
-        before = {"indexes": [index("shared", searchableDays=180), index("pan"), index("extra")]}
+        before = {"indexes": [index("shared", searchableDays=180), index("pan"), index("extra", searchableDays=30)]}
         after = {"indexes": [index("shared", searchableDays=180), index("pan")]}
         fake = FakeACS({("GET", "/indexes"): Seq(before, after)})
         code, out, _ = self.run_cli(fake, "push", "prod", "--types", "indexes",
@@ -578,7 +597,7 @@ class InferenceTests(ACSTestCase):
 
     def test_hand_set_default_is_not_changed_by_pull(self):
         path = self.root / "objects/indexes.toml"
-        path.write_text("[default]\nsearchableDays = 120\n", encoding="utf-8")
+        path.write_text("[default]\nsearchableDays = 120\n\n[a]\n", encoding="utf-8")
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("a", searchableDays=90)]}})
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes")
         self.assertEqual(code, 0)
@@ -643,14 +662,14 @@ class InferenceTests(ACSTestCase):
             self.assertEqual(out.splitlines()[-1], "NO DIFFERENCES")
 
     def test_nonprod_difference_is_written_inside_object_stanza(self):
-        for env, days in (("prod", 90), ("nonprod", 60)):
+        for env, days in (("prod", 30), ("nonprod", 60)):
             fake = FakeACS({("GET", "/indexes"): {"indexes": [index("pan", searchableDays=days)]}})
             code, _, _ = self.run_cli(fake, "pull", env, "--types", "indexes", "--names", "pan")
             self.assertEqual(code, 0)
         text = (self.root / "objects/indexes.toml").read_text(encoding="utf-8")
-        self.assertIn("[pan]\nnonprod.searchableDays = 60\n", text)
+        self.assertIn("[pan]\nsearchableDays = 30\nnonprod.searchableDays = 60\n", text)
         self.assertNotIn("[pan.nonprod]", text)
-        for env, days in (("nonprod", 60), ("prod", 90)):
+        for env, days in (("nonprod", 60), ("prod", 30)):
             _, out, _ = self.run_cli(
                 FakeACS({("GET", "/indexes"): {"indexes": [index("pan", searchableDays=days)]}}),
                 "plan", env, "--types", "indexes", "--names", "pan")

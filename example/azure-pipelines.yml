@@ -11,7 +11,7 @@ schedules:
 parameters:
   # Keep the values matching the environments list below.
   - name: environment
-    displayName: Environment - all runs every environment (pull in turn, push one job each)
+    displayName: Environment - all runs every environment (one job each, in parallel)
     type: string
     default: all
     values:

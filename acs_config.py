@@ -673,10 +673,11 @@ def infer_defaults(t, defaults, env, live):
             set_overrides(defaults, overrides)
 
 
-def pull_type(root, envs, env, t, names):
+def pull_type(root, envs, env, t, names, live=None):
     spec = TYPES[t]
     defaults, repo = load_type(root, t, envs)
-    live = live_objects(t, names)
+    if live is None:
+        live = live_objects(t, names)
     if names is None:
         infer_defaults(t, defaults, env, live)
     keys = set(live) | {k for k in repo if names is None or k in names}
@@ -720,11 +721,22 @@ def pull_type(root, envs, env, t, names):
     store_type(root, t, defaults, repo)
 
 
-def pull_command(root, envs, env, types, names):
+def pull_command(root, envs, env, types, names, live=None):
     for t in types:
         print(pipeline_message("section", f"{t} ({env} live into repo)"))
-        pull_type(root, list(envs), env, t, names)
+        pull_type(root, list(envs), env, t, names, None if live is None else live[t])
     write_doc(root)
+
+
+def fetch_command(env, types, names, out):
+    """Write the live objects of each type to out as JSON, for a later pull --live-dir."""
+    live = {}
+    for t in types:
+        print(pipeline_message("section", f"{t} ({env} live)"))
+        live[t] = live_objects(t, names)
+        print(f"{len(live[t])} objects")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(live, indent=1, sort_keys=True), encoding="utf-8")
 
 
 def copy_overrides(table, src, dst):
@@ -843,11 +855,15 @@ def add_common(sub):
 def build_parser():
     parser = argparse.ArgumentParser(description="Sync Splunk Cloud ACS settings with TOML files.")
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("pull", "plan"):
+    for name in ("pull", "plan", "fetch"):
         sub = commands.add_parser(name)
         sub.add_argument("env")
         if name == "plan":
             sub.add_argument("--check", action="store_true")
+        if name == "pull":
+            sub.add_argument("--live-dir")
+        if name == "fetch":
+            sub.add_argument("--out", required=True)
         add_common(sub)
     push = commands.add_parser("push")
     push.add_argument("env")
@@ -875,10 +891,18 @@ def main(argv=None):
             types = select_types(args.types, env_types(envs, args.dst))
             copy_command(root, args.src, args.dst, types, select_names(args.names))
             return 0
-        types = select_types(args.types, env_types(envs, args.env))
         names = select_names(args.names)
         if args.command == "pull":
-            pull_command(root, envs, args.env, types, names)
+            # all pulls in reverse name order, so prod sets the defaults before nonprod.
+            for env in sorted(envs, reverse=True) if args.env == "all" else [args.env]:
+                live = None
+                if args.live_dir:
+                    live = json.loads(Path(args.live_dir, f"live-{env}", f"{env}.json").read_text(encoding="utf-8"))
+                pull_command(root, envs, env, select_types(args.types, env_types(envs, env)), names, live)
+            return 0
+        types = select_types(args.types, env_types(envs, args.env))
+        if args.command == "fetch":
+            fetch_command(args.env, types, names, Path(args.out))
         elif args.command == "plan":
             changes = plan_command(root, args.env, types, names)
             if args.check and changes:

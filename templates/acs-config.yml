@@ -1,5 +1,6 @@
 # Pull requests always run plan for every environment.
-# A pull run commits every environment to one branch, acs-pull/<build id>, and opens one pull request.
+# A pull run reads every environment in parallel, then one job writes them in order to acs-pull/<build id>
+# and opens one pull request.
 parameters:
   - name: pool
     type: object
@@ -65,14 +66,8 @@ jobs:
                             names: ${{ parameters.names }}
                             delete: ${{ parameters.delete }}
           - ${{ else }}:
-              - job: ${{ parameters.action }}_${{ replace(env, '-', '_') }}
-                displayName: ${{ iif(eq(parameters.action, 'pull'), format('Pull {0}', env), format('Plan {0}', env)) }}
-                # Pull jobs run in reverse name order (prod before nonprod) on one shared branch.
-                ${{ if eq(parameters.action, 'pull') }}:
-                  dependsOn:
-                    - ${{ each other in parameters.environments }}:
-                        - ${{ if and(gt(other, env), in(parameters.environment, 'all', other)) }}:
-                            - pull_${{ replace(other, '-', '_') }}
+              - job: ${{ iif(eq(parameters.action, 'pull'), 'read', parameters.action) }}_${{ replace(env, '-', '_') }}
+                displayName: ${{ iif(eq(parameters.action, 'pull'), format('Read {0} live', env), format('Plan {0}', env)) }}
                 pool: ${{ parameters.pool }}
                 variables:
                   - group: splunk-${{ env }}
@@ -80,7 +75,22 @@ jobs:
                   - template: acs-config-steps.yml
                     parameters:
                       env: ${{ env }}
-                      action: ${{ parameters.action }}
+                      action: ${{ iif(eq(parameters.action, 'pull'), 'fetch', parameters.action) }}
                       check: ${{ parameters.check }}
                       types: ${{ parameters.types }}
                       names: ${{ parameters.names }}
+  - ${{ if and(eq(parameters.action, 'pull'), ne(variables['Build.Reason'], 'PullRequest')) }}:
+      - job: pull
+        displayName: Pull ${{ parameters.environment }} into one pull request
+        dependsOn:
+          - ${{ each env in parameters.environments }}:
+              - ${{ if in(parameters.environment, 'all', env) }}:
+                  - read_${{ replace(env, '-', '_') }}
+        pool: ${{ parameters.pool }}
+        steps:
+          - template: acs-config-steps.yml
+            parameters:
+              env: ${{ parameters.environment }}
+              action: pull
+              types: ${{ parameters.types }}
+              names: ${{ parameters.names }}

@@ -242,7 +242,7 @@ def select_types(raw, allowed):
     chosen = list(TYPES) if raw.strip() in ("", "all") else raw.replace(";", " ").split()
     unknown = [t for t in chosen if t not in TYPES]
     if unknown:
-        raise ACSConfigError(f"unknown type: {' '.join(unknown)}. Types: {';'.join(TYPES)}")
+        raise ACSConfigError(f"unknown type: {';'.join(unknown)}. Types: {';'.join(TYPES)}")
     return [t for t in TYPES if t in chosen and t in allowed]
 
 

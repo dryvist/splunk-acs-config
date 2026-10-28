@@ -80,6 +80,10 @@ class ACSTestCase(unittest.TestCase):
 
 
 class TomlTests(unittest.TestCase):
+    def test_unknown_type_lists_the_types(self):
+        with self.assertRaisesRegex(acs_config.ACSConfigError, "unknown type: index. Types: indexes;hec-tokens;"):
+            acs_config.select_types("index", acs_config.TYPES)
+
     def test_writer_rejects_unsupported_values_as_config_errors(self):
         with self.assertRaisesRegex(acs_config.ACSConfigError, "unsupported TOML value"):
             acs_config.dump_toml({"unsupported": 1.5})

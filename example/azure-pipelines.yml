@@ -9,10 +9,15 @@ schedules:
     always: true
 
 parameters:
+  # Keep the values matching the environments list below.
   - name: environment
-    displayName: Environment - all, or one name from environments.toml (pull runs envs in turn, push one job per env)
+    displayName: Environment - all runs every environment (pull in turn, push one job each)
     type: string
     default: all
+    values:
+      - all
+      - nonprod
+      - prod
   - name: action
     displayName: Action - plan = compare only, pull = read live into a pull request, push = write files to the stack
     type: string
@@ -22,7 +27,7 @@ parameters:
       - pull
       - push
   - name: types
-    displayName: Object types - all, or types separated by ;. See wiki Object types
+    displayName: Object types - all, or any of indexes;hec-tokens;ip-allowlists;ip-allowlists-v6;outbound-ports;outbound-ports-v6;roles;limits;app-permissions;private-apps;splunkbase-apps
     type: string
     default: all
   - name: check

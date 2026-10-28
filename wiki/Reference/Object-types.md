@@ -21,6 +21,10 @@ A type marked no is not pushed by default. See [File format](/Reference/File-for
 ## Stanza keys and stored data
 
 - indexes uses the index name as the stanza name and stores writable index fields.
+  - A pull skips a new index whose values are all Splunk defaults, such as system and app indexes. Plan and push
+    ignore it. To manage one, add its stanza by hand.
+  - `mdlIndex`, `selfStorageBucketPath`, and `splunkArchivalRetentionDays` are written only when set. They never go
+    in `[default]` or `unset`.
 - hec-tokens uses the token name. Token values are never read, written, or printed.
 - Both ip-allowlist types use the feature name and store a subnet list.
 - Both outbound-ports types use the port number and store subnets. A configured reason is sent when creating a port;

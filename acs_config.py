@@ -47,6 +47,11 @@ TYPES = {
                          "splunkArchivalRetentionDays"),
         # ACS OpenAPI IndexInfo defaults.
         "splunk_defaults": {"datatype": "event", "maxDataSizeMB": 0, "searchableDays": 90},
+        # Stored only when set; never inferred into [default] or unset.
+        "optional": ("mdlIndex", "selfStorageBucketPath", "splunkArchivalRetentionDays"),
+        # A live index with only Splunk default values that the files do not list is not pulled,
+        # planned or deleted.
+        "skip_default": True,
         "list": "/indexes", "items": ("indexes",), "paged": True,
         "post": "/indexes", "patch": "/indexes/{key}", "delete": "/indexes/{key}", "push": True,
     },
@@ -371,7 +376,19 @@ def normalize(t, item):
     elif t.startswith("outbound-ports"):
         item = {"port": item["port"], "subnets": item.get("destinationRanges")}
     fields = type_fields(t, item)
-    return {k: canon(v) for k, v in item.items() if k in fields and v is not None}
+    optional = TYPES[t].get("optional", ())
+    return {k: canon(v) for k, v in item.items()
+            if k in fields and v is not None and not (k in optional and not v)}
+
+
+def all_default(t, record):
+    """True for a skip_default type's live record whose values are all Splunk defaults."""
+    spec = TYPES[t]
+    if not spec.get("skip_default"):
+        return False
+    builtins = spec.get("splunk_defaults", {})
+    return all(canon(value) == canon(builtins.get(field))
+               for field, value in record.items() if field != spec["key"])
 
 
 def response_items(data, wrapper):
@@ -474,7 +491,8 @@ def type_changes(root, env, t, names=None):
     if not managed and not type_pushed:
         return []
     live = live_objects(t, names)
-    keys = managed | ({k for k in live if k not in repo} if type_pushed else set())
+    keys = managed | ({k for k in live if k not in repo and not all_default(t, live[k])}
+                      if type_pushed else set())
     return [c for key in sorted(keys)
             for c in key_changes(t, key, merged(t, defaults, repo[key], env) if key in managed else None,
                                  live.get(key))]
@@ -572,11 +590,12 @@ def apply_change(c, session=None):
 
 def wait_converged(root, env, c, allow_delete):
     for _ in range(POLL_ATTEMPTS):
-        pending = type_changes(root, env, c["type"], {c["key"]})
-        if not any(applicable(p, allow_delete) for p in pending):
+        pending = [p for p in type_changes(root, env, c["type"], {c["key"]}) if applicable(p, allow_delete)]
+        if not pending:
             return
         time.sleep(POLL_INTERVAL)
-    raise ACSConfigError(f"timed out waiting for {c['type']}/{c['key']} to match the files")
+    still = "; ".join(line for p in pending for line in describe(p))
+    raise ACSConfigError(f"timed out waiting for {c['type']}/{c['key']} to match the files. Still different: {still}")
 
 
 def plan_command(root, env, types, names):
@@ -660,8 +679,11 @@ def common_values(t, live):
 def infer_defaults(t, defaults, env, live):
     if TYPES[t].get("subnet"):
         return
-    common = common_values(t, live)
+    optional = TYPES[t].get("optional", ())
+    common = {f: v for f, v in common_values(t, live).items() if f not in optional}
     builtins = TYPES[t].get("splunk_defaults", {})
+    for field in optional:
+        defaults.pop(field, None)
     if not any(field not in META for field in defaults):
         defaults.update({f: v for f, v in common.items() if canon(v) != canon(builtins.get(f))})
     overrides = dict(defaults.get("overrides") or {})
@@ -678,6 +700,7 @@ def pull_type(root, envs, env, t, names, live=None):
     defaults, repo = load_type(root, t, envs)
     if live is None:
         live = live_objects(t, names)
+    live = {key: record for key, record in live.items() if key in repo or not all_default(t, record)}
     if names is None:
         infer_defaults(t, defaults, env, live)
     keys = set(live) | {k for k in repo if names is None or k in names}

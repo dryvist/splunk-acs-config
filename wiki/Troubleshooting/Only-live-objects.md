@@ -4,7 +4,8 @@ This page handles objects that exist in ACS but not in the files.
 
 ## Symptom
 
-A plan reports ONLY LIVE for an object that is present in ACS but absent from the repository.
+A plan reports ONLY LIVE for an object that is present in ACS but absent from the repository. An index whose values
+are all Splunk defaults never shows as ONLY LIVE.
 
 ## Action
 

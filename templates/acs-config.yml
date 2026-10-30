@@ -1,6 +1,8 @@
 # Pull requests always run plan for every environment.
 # A pull run reads every environment in parallel, then one job writes them in order to acs-pull/<build id>
 # and opens one pull request.
+# A push run plans every environment first and never writes in that stage. Each environment then has its own
+# stage: Approve push, Push (creates and updates only), and, when delete is true, Approve delete and Delete.
 parameters:
   - name: pool
     type: object
@@ -32,65 +34,117 @@ parameters:
     type: boolean
     default: false
 
-jobs:
-  - ${{ each env in parameters.environments }}:
-      - ${{ if in(parameters.environment, 'all', env) }}:
-          - ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
-              - job: plan_${{ replace(env, '-', '_') }}
-                displayName: Plan ${{ env }}
-                pool: ${{ parameters.pool }}
-                variables:
-                  - group: splunk-${{ env }}
-                steps:
-                  - template: acs-config-steps.yml
-                    parameters:
-                      env: ${{ env }}
-                      action: plan
-                      check: ${{ parameters.check }}
-          - ${{ elseif eq(parameters.action, 'push') }}:
-              - deployment: push_${{ replace(env, '-', '_') }}
+stages:
+  - stage: plan
+    displayName: ${{ iif(and(eq(parameters.action, 'pull'), ne(variables['Build.Reason'], 'PullRequest')), 'Read live', 'Plan (read-only)') }}
+    jobs:
+      - ${{ each env in parameters.environments }}:
+          - ${{ if in(parameters.environment, 'all', env) }}:
+              - ${{ if or(eq(variables['Build.Reason'], 'PullRequest'), ne(parameters.action, 'pull')) }}:
+                  - job: plan_${{ replace(env, '-', '_') }}
+                    displayName: Plan ${{ env }}
+                    pool: ${{ parameters.pool }}
+                    variables:
+                      - group: splunk-${{ env }}
+                    steps:
+                      - template: acs-config-steps.yml
+                        parameters:
+                          env: ${{ env }}
+                          action: plan
+                          check: ${{ and(parameters.check, ne(parameters.action, 'push')) }}
+                          types: ${{ parameters.types }}
+                          names: ${{ parameters.names }}
+              - ${{ else }}:
+                  - job: read_${{ replace(env, '-', '_') }}
+                    displayName: Read ${{ env }} live
+                    pool: ${{ parameters.pool }}
+                    variables:
+                      - group: splunk-${{ env }}
+                    steps:
+                      - template: acs-config-steps.yml
+                        parameters:
+                          env: ${{ env }}
+                          action: fetch
+                          types: ${{ parameters.types }}
+                          names: ${{ parameters.names }}
+      - ${{ if and(eq(parameters.action, 'pull'), ne(variables['Build.Reason'], 'PullRequest')) }}:
+          - job: pull
+            displayName: Pull ${{ parameters.environment }} into one pull request
+            dependsOn:
+              - ${{ each env in parameters.environments }}:
+                  - ${{ if in(parameters.environment, 'all', env) }}:
+                      - read_${{ replace(env, '-', '_') }}
+            pool: ${{ parameters.pool }}
+            steps:
+              - template: acs-config-steps.yml
+                parameters:
+                  env: ${{ parameters.environment }}
+                  action: pull
+                  types: ${{ parameters.types }}
+                  names: ${{ parameters.names }}
+  - ${{ if and(eq(parameters.action, 'push'), ne(variables['Build.Reason'], 'PullRequest')) }}:
+      - ${{ each env in parameters.environments }}:
+          - ${{ if in(parameters.environment, 'all', env) }}:
+              - stage: push_${{ replace(env, '-', '_') }}
                 displayName: Push ${{ env }}
-                pool: ${{ parameters.pool }}
-                environment: splunk-${{ env }}
-                variables:
-                  - group: splunk-${{ env }}
-                strategy:
-                  runOnce:
-                    deploy:
-                      steps:
-                        - template: acs-config-steps.yml
-                          parameters:
-                            env: ${{ env }}
-                            action: push
-                            types: ${{ parameters.types }}
-                            names: ${{ parameters.names }}
-                            delete: ${{ parameters.delete }}
-          - ${{ else }}:
-              - job: ${{ iif(eq(parameters.action, 'pull'), 'read', parameters.action) }}_${{ replace(env, '-', '_') }}
-                displayName: ${{ iif(eq(parameters.action, 'pull'), format('Read {0} live', env), format('Plan {0}', env)) }}
-                pool: ${{ parameters.pool }}
-                variables:
-                  - group: splunk-${{ env }}
-                steps:
-                  - template: acs-config-steps.yml
-                    parameters:
-                      env: ${{ env }}
-                      action: ${{ iif(eq(parameters.action, 'pull'), 'fetch', parameters.action) }}
-                      check: ${{ parameters.check }}
-                      types: ${{ parameters.types }}
-                      names: ${{ parameters.names }}
-  - ${{ if and(eq(parameters.action, 'pull'), ne(variables['Build.Reason'], 'PullRequest')) }}:
-      - job: pull
-        displayName: Pull ${{ parameters.environment }} into one pull request
-        dependsOn:
-          - ${{ each env in parameters.environments }}:
-              - ${{ if in(parameters.environment, 'all', env) }}:
-                  - read_${{ replace(env, '-', '_') }}
-        pool: ${{ parameters.pool }}
-        steps:
-          - template: acs-config-steps.yml
-            parameters:
-              env: ${{ parameters.environment }}
-              action: pull
-              types: ${{ parameters.types }}
-              names: ${{ parameters.names }}
+                dependsOn: plan
+                jobs:
+                  - job: approve_push
+                    displayName: Approve push to ${{ env }}
+                    pool: server
+                    timeoutInMinutes: 1440
+                    steps:
+                      - task: ManualValidation@1
+                        timeoutInMinutes: 1430
+                        inputs:
+                          notifyUsers: ''
+                          instructions: Read Plan ${{ env }} in the Plan stage. Resume creates and updates those objects in ${{ env }}. Reject stops this environment.
+                          onTimeout: reject
+                  - deployment: push
+                    displayName: Push ${{ env }} creates and updates
+                    dependsOn: approve_push
+                    pool: ${{ parameters.pool }}
+                    environment: splunk-${{ env }}
+                    variables:
+                      - group: splunk-${{ env }}
+                    strategy:
+                      runOnce:
+                        deploy:
+                          steps:
+                            - template: acs-config-steps.yml
+                              parameters:
+                                env: ${{ env }}
+                                action: push
+                                types: ${{ parameters.types }}
+                                names: ${{ parameters.names }}
+                  - ${{ if parameters.delete }}:
+                      - job: approve_delete
+                        displayName: Approve delete in ${{ env }}
+                        dependsOn: push
+                        pool: server
+                        timeoutInMinutes: 1440
+                        steps:
+                          - task: ManualValidation@1
+                            timeoutInMinutes: 1430
+                            inputs:
+                              notifyUsers: ''
+                              instructions: Read each ONLY LIVE and REMOVE SUBNETS line in Plan ${{ env }}. Resume deletes them from ${{ env }}. Deleting an index deletes its data. Reject keeps them.
+                              onTimeout: reject
+                      - deployment: delete
+                        displayName: Delete ${{ env }} live-only objects
+                        dependsOn: approve_delete
+                        pool: ${{ parameters.pool }}
+                        environment: splunk-${{ env }}
+                        variables:
+                          - group: splunk-${{ env }}
+                        strategy:
+                          runOnce:
+                            deploy:
+                              steps:
+                                - template: acs-config-steps.yml
+                                  parameters:
+                                    env: ${{ env }}
+                                    action: push
+                                    types: ${{ parameters.types }}
+                                    names: ${{ parameters.names }}
+                                    delete: true

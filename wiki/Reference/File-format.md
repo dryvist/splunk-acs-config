@@ -5,10 +5,12 @@ This page defines the TOML syntax and how configuration layers resolve.
 ## Files
 
 `environments.toml` names environments and can limit the types used in an environment. See
-[Object types](/Reference/Object-types) for type file names.
+[Object types](/Reference/Object-types) for type file names. Set `archival = false` for a stack without Splunk Data
+Archival. Plan and push then skip `splunkArchivalRetentionDays` in that environment.
 
 ~~~toml
 [nonprod]
+archival = false
 
 [prod]
 types = ["indexes", "app-permissions"]

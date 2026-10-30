@@ -190,6 +190,16 @@ class PullTests(ACSTestCase):
         _, out, _ = self.run_cli(fake, "plan", "prod", "--types", "indexes", "--names", "_internal;itsi_summary")
         self.assertIn("NO DIFFERENCES", out)
 
+    def test_archival_false_skips_archival_retention(self):
+        (self.root / "environments.toml").write_text("[nonprod]\narchival = false\n\n[prod]\n", encoding="utf-8")
+        (self.root / "objects/indexes.toml").write_text(
+            "[a]\nsearchableDays = 30\nsplunkArchivalRetentionDays = 365\n", encoding="utf-8")
+        fake = FakeACS({("GET", "/indexes"): {"indexes": [index("a", searchableDays=30)]}})
+        _, out, _ = self.run_cli(fake, "plan", "nonprod", "--types", "indexes")
+        self.assertIn("NO DIFFERENCES", out)
+        _, out, _ = self.run_cli(fake, "plan", "prod", "--types", "indexes")
+        self.assertIn("UPDATE indexes/a splunkArchivalRetentionDays: null -> 365", out)
+
     def test_unset_optional_field_is_not_written(self):
         live = [index("a", searchableDays=30, splunkArchivalRetentionDays=0),
                 index("b", searchableDays=30, splunkArchivalRetentionDays=365), index("c", searchableDays=30)]

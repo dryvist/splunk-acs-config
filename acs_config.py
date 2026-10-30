@@ -483,7 +483,10 @@ def key_changes(t, key, eff, live):
 
 def type_changes(root, env, t, names=None):
     """Plan only objects whose push flag is true; live-only objects follow the type's flag."""
-    defaults, all_repo = load_type(root, t, load_environments(root))
+    envs = load_environments(root)
+    defaults, all_repo = load_type(root, t, envs)
+    # archival = false in environments.toml: the stack has no Splunk Data Archival.
+    skip = ("splunkArchivalRetentionDays",) if envs.get(env, {}).get("archival") is False else ()
     repo = {key: raw for key, raw in all_repo.items()
             if (names is None or key in names) and in_env(raw, env)}
     managed = {key for key, raw in repo.items() if pushed(t, defaults, raw, env)}
@@ -494,7 +497,8 @@ def type_changes(root, env, t, names=None):
     keys = managed | ({k for k in live if k not in repo and not all_default(t, live[k])}
                       if type_pushed else set())
     return [c for key in sorted(keys)
-            for c in key_changes(t, key, merged(t, defaults, repo[key], env) if key in managed else None,
+            for c in key_changes(t, key, {k: v for k, v in merged(t, defaults, repo[key], env).items()
+                                          if k not in skip} if key in managed else None,
                                  live.get(key))]
 
 

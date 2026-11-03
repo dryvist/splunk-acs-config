@@ -25,7 +25,7 @@ A type marked no is not pushed by default. See [File format](/Reference/File-for
     ignore it. To manage one, add its stanza by hand.
   - `mdlIndex`, `selfStorageBucketPath`, and `splunkArchivalRetentionDays` are written only when set. They never go
     in `[default]` or `unset`.
-- hec-tokens uses the token name. When the files leave `defaultHost` unset, plan does not compare it, and each HEC create or update sends it blank. Token values are never written to files or sent to ACS. Push prints the token value of each HEC token it creates or updates.
+- hec-tokens uses the token name. When the files leave `defaultHost` unset, plan does not compare it, and each HEC create sends it blank. An update sends it blank only when the live value is the stack default, `<stack>.splunkcloud.com` or `<host>.<stack>.splunkcloud.com`. Token values are never written to files or sent to ACS. Push prints the token value of each HEC token it creates or updates.
 - Both ip-allowlist types use the feature name and store a subnet list.
 - Both outbound-ports types use the port number and store subnets. A configured reason is sent when creating a port;
   plans compare subnets.

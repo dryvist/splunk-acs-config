@@ -363,6 +363,12 @@ def canon(value):
     return sorted(value, key=str) if isinstance(value, list) else value
 
 
+def stack_default(value):
+    """True for a host name Splunk Cloud sets from the stack: <stack>.splunkcloud.com or <host>.<stack>.splunkcloud.com."""
+    domain = f"{env_value('SPLUNK_STACK')}.splunkcloud.com"
+    return isinstance(value, str) and (value == domain or value.endswith("." + domain))
+
+
 def same_value(value):
     """A value as plan compares it: "" and null are the same."""
     return None if value == "" else canon(value)
@@ -479,15 +485,18 @@ def key_changes(t, key, eff, live):
         return out
     if eff is None:
         return [change(t, key, "ONLY LIVE")]
+    # A stack-set field the files leave unset is sent blank when the stack would set or has set its default.
+    blank = {f: "" for f in spec.get("stack_set", ())
+             if same_value(eff.get(f)) is None and (live is None or stack_default(live.get(f)))}
     if live is None:
         if "post" not in spec:
             return [change(t, key, "MISSING")]
-        return [change(t, key, "CREATE", eff=eff)]
+        return [change(t, key, "CREATE", eff=eff, blank=blank)]
     patch_fields = spec.get("patch_fields", tuple(f for f in type_fields(t, live, eff) if f != spec["key"]))
     fields = {f: (live.get(f), eff.get(f)) for f in patch_fields
               if same_value(live.get(f)) != same_value(eff.get(f))
               and not (f in spec.get("stack_set", ()) and same_value(eff.get(f)) is None)}
-    return [change(t, key, "UPDATE", fields=fields, eff=eff)] if fields else []
+    return [change(t, key, "UPDATE", fields=fields, eff=eff, blank=blank)] if fields else []
 
 
 def type_changes(root, env, t, names=None):
@@ -586,8 +595,7 @@ def apply_change(c, session=None):
             headers["ACS-Licensing-Ack"] = c["eff"]["license"]
         return request("POST" if op == "CREATE" else "PATCH", path, body, form=True,
                        extra_headers=headers)[1]
-    # A stack-set field the files leave unset is sent blank, so the stack value is cleared.
-    blank = {f: "" for f in spec.get("stack_set", ()) if c.get("eff", {}).get(f) is None}
+    blank = c.get("blank", {})
     if op == "CREATE":
         return request("POST", spec["post"], {**c["eff"], **blank})[1]
     if op == "UPDATE":

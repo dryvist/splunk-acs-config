@@ -14,13 +14,12 @@ Deleting an index deletes its data. Some types have no delete operation. See [Ob
 6. Select **Run**.
 7. Wait for the **Plan (read-only)** stage to finish.
 8. Read each `ONLY LIVE` and `REMOVE SUBNETS` line in the plan output.
-9. If any object should stay, select **Reject** in **Approve push to `<env>`**. Follow [Pull](/What-to-run/Pull)
-   with the same `types` and `names`, then start again from step 1.
-10. If every line should be removed, select **Resume** in **Approve push to `<env>`**.
-11. Wait for the push job to finish.
-12. Select **Resume** in **Approve delete in `<env>`**.
-13. Wait for the run to finish.
-14. Open the delete step and confirm it ends with `NO DIFFERENCES after push`.
+9. If any object should stay, do not run any stage. Follow [Pull](/What-to-run/Pull) with the same `types` and
+   `names`, then start again from step 1.
+10. If every line should be removed, select **Delete `<env>` live-only objects (optional, run by hand)**.
+11. Select **Run stage**.
+12. Wait for the stage to finish.
+13. Open the delete step and confirm it ends with `NO DIFFERENCES after push`.
 
 ## Verify
 

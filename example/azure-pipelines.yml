@@ -1,5 +1,9 @@
-# PR validation runs through a main-branch Build validation policy.
-trigger: none
+# PR validation runs through a main-branch Build validation policy. A merge to main plans every environment
+# and adds a Push stage per environment that runs only when selected.
+trigger:
+  branches:
+    include:
+      - main
 
 schedules:
   - cron: '0 0 * * *'

@@ -586,10 +586,12 @@ def apply_change(c, session=None):
             headers["ACS-Licensing-Ack"] = c["eff"]["license"]
         return request("POST" if op == "CREATE" else "PATCH", path, body, form=True,
                        extra_headers=headers)[1]
+    # A stack-set field the files leave unset is sent blank, so the stack value is cleared.
+    blank = {f: "" for f in spec.get("stack_set", ()) if c.get("eff", {}).get(f) is None}
     if op == "CREATE":
-        return request("POST", spec["post"], c["eff"])[1]
+        return request("POST", spec["post"], {**c["eff"], **blank})[1]
     if op == "UPDATE":
-        body = {f: repo for f, (_, repo) in c["fields"].items()}
+        body = {**blank, **{f: repo for f, (_, repo) in c["fields"].items()}}
         return request("PATCH", path_for(spec["patch"], key), body)[1]
     if op == "ADD":
         return request("POST", path_for(spec["post"], key), add_body(t, key, c))[1]

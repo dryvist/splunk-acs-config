@@ -61,6 +61,8 @@ TYPES = {
                    "defaultSource", "defaultSourcetype", "disabled", "useAck"),
         # inputs.conf.spec [http://<name>], Splunk 10.6.
         "splunk_defaults": {"disabled": False, "useAck": False},
+        # Splunk sets these from the stack when the files leave them unset.
+        "stack_set": ("defaultHost",),
         "list": "/inputs/http-event-collectors", "items": ("http_event_collectors",), "paged": True,
         "post": "/inputs/http-event-collectors", "patch": "/inputs/http-event-collectors/{key}",
         "delete": "/inputs/http-event-collectors/{key}", "push": True,
@@ -483,7 +485,8 @@ def key_changes(t, key, eff, live):
         return [change(t, key, "CREATE", eff=eff)]
     patch_fields = spec.get("patch_fields", tuple(f for f in type_fields(t, live, eff) if f != spec["key"]))
     fields = {f: (live.get(f), eff.get(f)) for f in patch_fields
-              if same_value(live.get(f)) != same_value(eff.get(f))}
+              if same_value(live.get(f)) != same_value(eff.get(f))
+              and not (f in spec.get("stack_set", ()) and same_value(eff.get(f)) is None)}
     return [change(t, key, "UPDATE", fields=fields, eff=eff)] if fields else []
 
 

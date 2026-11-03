@@ -90,6 +90,12 @@ class TomlTests(unittest.TestCase):
         self.assertEqual(acs_config.key_changes("indexes", "pan", {"name": "pan", "selfStorageBucketPath": None},
                                                 {"name": "pan", "selfStorageBucketPath": ""}), [])
 
+    def test_hec_default_host_set_by_the_stack_is_not_a_change(self):
+        live = {"name": "a b", "defaultHost": "stack.example", "defaultSource": "", "disabled": False, "useAck": False}
+        self.assertEqual(acs_config.key_changes("hec-tokens", "a b", {"name": "a b", "disabled": False, "useAck": False},
+                                                live), [])
+        self.assertEqual(len(acs_config.key_changes("hec-tokens", "a b", {"name": "a b", "defaultHost": "h"}, live)), 1)
+
     def test_names_split_only_on_semicolons(self):
         self.assertEqual(acs_config.select_names("my token; pan"), {"my token", "pan"})
 

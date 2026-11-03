@@ -4,7 +4,7 @@ This page maps the Azure DevOps pipeline to GitHub Actions, with `acs_config.py`
 
 | Azure DevOps | GitHub Actions |
 | --- | --- |
-| Pipeline with parameters `environment`, `action`, `types`, `check`, `names` and `delete` | A workflow with `on: workflow_dispatch` and inputs of the same names. `action` is a `choice`, `environment`, `types` and `names` are `string`, and `check` and `delete` are `boolean`. |
+| Pipeline with parameters `environment`, `action`, `readOnly`, `types`, `check`, `names` and `delete` | A workflow with `on: workflow_dispatch` and inputs of the same names. `action` is a `choice`, `environment`, `types` and `names` are `string`, and `readOnly`, `check` and `delete` are `boolean`. |
 | `schedules` block | `on: schedule` with `cron`. Cron runs in UTC, the shortest interval is 5 minutes, and only the default branch runs the schedule. |
 | Variable group `splunk-<env>` | An environment `splunk-<env>` with environment secrets for `ACS_TOKEN`, `SPLUNKBASE_USERNAME` and `SPLUNKBASE_PASSWORD`, and environment variables for `SPLUNK_STACK` and `SPLUNK_SEARCH_HEAD`. Jobs read them only when they reference the environment with `environment:`. |
 | Environment `splunk-prod` with an Approvals check | An environment `splunk-prod` with required reviewers. The job waits until a reviewer approves it. |

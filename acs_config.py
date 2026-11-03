@@ -599,10 +599,13 @@ def apply_change(c, session=None):
 
 
 def wait_converged(root, env, c, allow_delete):
-    for _ in range(POLL_ATTEMPTS):
+    for attempt in range(1, POLL_ATTEMPTS + 1):
         pending = [p for p in type_changes(root, env, c["type"], {c["key"]}) if applicable(p, allow_delete)]
         if not pending:
+            print(f"{c['type']}/{c['key']} matches the files", flush=True)
             return
+        print(f"Waiting for ACS to finish {c['type']}/{c['key']} (check {attempt} of {POLL_ATTEMPTS}, "
+              f"every {POLL_INTERVAL} seconds)", flush=True)
         time.sleep(POLL_INTERVAL)
     still = "; ".join(line for p in pending for line in describe(p))
     raise ACSConfigError(f"timed out waiting for {c['type']}/{c['key']} to match the files. Still different: {still}")
@@ -620,6 +623,8 @@ def push_command(root, env, types, names, allow_delete):
     session = splunkbase_session() if any(c["type"] == "splunkbase-apps" and applicable(c, allow_delete)
                                           for c in changes) else None
     for c in changes:
+        if applicable(c, allow_delete):
+            print(f"{c['op']} {c['type']}/{c['key']}", flush=True)
         if applicable(c, allow_delete) and apply_change(c, session) == 202:
             wait_converged(root, env, c, allow_delete)
     left = collect(root, env, types, names)

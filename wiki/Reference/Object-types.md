@@ -25,7 +25,7 @@ A type marked no is not pushed by default. See [File format](/Reference/File-for
     ignore it. To manage one, add its stanza by hand.
   - `mdlIndex`, `selfStorageBucketPath`, and `splunkArchivalRetentionDays` are written only when set. They never go
     in `[default]` or `unset`.
-- hec-tokens uses the token name. Token values are never read, written, or printed.
+- hec-tokens uses the token name. Token values are never written to files or sent to ACS. Push prints the token value of each HEC token it creates or updates.
 - Both ip-allowlist types use the feature name and store a subnet list.
 - Both outbound-ports types use the port number and store subnets. A configured reason is sent when creating a port;
   plans compare subnets.

@@ -36,7 +36,7 @@ The pipeline reads the variable group `splunk-<env>` for each environment in the
 
 ## Rules
 
-Do not put a token value in a config file, a pipeline log, or a pull request.
+Do not put a token value in a config file or a pull request. Push prints the value of each HEC token it creates or updates in its log.
 
 For what the tool reads from these variables, see [Commands](/Reference/Commands). For access errors, see
 [Authentication](/Troubleshooting/Authentication) and [ACS allowlist](/Troubleshooting/ACS-allowlist).

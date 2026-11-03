@@ -86,6 +86,10 @@ class TomlTests(unittest.TestCase):
         with self.assertRaisesRegex(acs_config.ACSConfigError, "unknown type: index;role. Types:"):
             acs_config.select_types("index role", acs_config.TYPES)
 
+    def test_blank_and_null_are_the_same(self):
+        self.assertEqual(acs_config.key_changes("indexes", "pan", {"name": "pan", "selfStorageBucketPath": None},
+                                                {"name": "pan", "selfStorageBucketPath": ""}), [])
+
     def test_names_split_only_on_semicolons(self):
         self.assertEqual(acs_config.select_names("my token; pan"), {"my token", "pan"})
 

@@ -291,7 +291,7 @@ class PullTests(ACSTestCase):
         code, out, err = self.run_cli(fake, "push", "prod", "--types", "hec-tokens")
         self.assertEqual(code, 0, err)
         self.assertEqual(fake.writes(), [
-            ("PATCH", "/inputs/http-event-collectors/collector", {"defaultIndex": "shared"})])
+            ("PATCH", "/inputs/http-event-collectors/collector", {"defaultHost": "", "defaultIndex": "shared"})])
         self.assertIn("collector: SECRET-VALUE", out)
 
     def test_app_permissions_pull(self):

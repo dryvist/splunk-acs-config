@@ -7,7 +7,7 @@ A plan compares the repository files with the live stack, reports the difference
 1. Select **Pipelines**.
 2. Open the config pipeline.
 3. Select **Run pipeline**.
-4. Keep `readOnly` selected. `action` does not matter.
+4. Keep `write` cleared. `action` does not matter.
 5. Set `environment` to `all`, `nonprod` or `prod`.
 6. Set `types` to `all`, or to type names separated by `;`.
 7. Set `names` to `all`, or to names separated by `;`.

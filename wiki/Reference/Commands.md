@@ -30,7 +30,7 @@ python acs_config.py doc [--dir D]
 
 - `environment`: `all`, or one name from `environments.toml`.
 - `action`: `pull` or `push`.
-- `readOnly`: `true` runs only the plan. It is the default.
+- `write`: `true` adds the pull request or the Push stages after the plan. It is off by default.
 - `types`: `all`, or type names separated by `;`. See [Object types](/Reference/Object-types).
 - `names`: `all`, or stanza names separated by `;`.
 - `check`: fails the plan when differences exist.

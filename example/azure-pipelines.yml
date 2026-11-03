@@ -29,10 +29,10 @@ parameters:
     values:
       - pull
       - push
-  - name: readOnly
-    displayName: Read-only - run the plan only, with no pull request and no Push stages
+  - name: write
+    displayName: Write - after the plan, open the pull request (pull) or add the Push stages (push)
     type: boolean
-    default: true
+    default: false
   - name: types
     displayName: Object types - all, or any of indexes;hec-tokens;ip-allowlists;ip-allowlists-v6;outbound-ports;outbound-ports-v6;roles;limits;app-permissions;private-apps;splunkbase-apps
     type: string
@@ -65,7 +65,7 @@ extends:
       - prod
     environment: ${{ parameters.environment }}
     action: ${{ parameters.action }}
-    readOnly: ${{ parameters.readOnly }}
+    write: ${{ parameters.write }}
     types: ${{ parameters.types }}
     check: ${{ parameters.check }}
     names: ${{ parameters.names }}

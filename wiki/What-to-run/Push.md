@@ -44,7 +44,7 @@ Each name is a stanza name in the type's file. Separate several names with `;`. 
 1. Select **Pipelines**.
 2. Open the config pipeline.
 3. Select **Run pipeline**.
-4. Set `action` to `push`, clear `readOnly`, and keep `delete` as `false`.
+4. Set `action` to `push`, select `write`, and keep `delete` as `false`.
 5. Set `types` and `names` from the table.
 6. Select **Run**.
 7. Follow steps 4 to 10 of [Push after a merge](#push-after-a-merge).

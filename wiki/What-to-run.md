@@ -4,13 +4,13 @@ Pick the row for your task, set its parameters when you run the pipeline, and op
 
 | Task | Action | Parameters | Page |
 | --- | --- | --- | --- |
-| See differences | `readOnly` selected | `environment`: `all`, `nonprod` or `prod`. `types`: `all` or a `;` list of type names. `names`: `all` or a `;` list of names. `check`: `false` or `true`. | [Plan](/What-to-run/Plan) |
+| See differences | `write` cleared | `environment`: `all`, `nonprod` or `prod`. `types`: `all` or a `;` list of type names. `names`: `all` or a `;` list of names. `check`: `false` or `true`. | [Plan](/What-to-run/Plan) |
 | Nightly drift check | A schedule (always read-only) | None. The schedule runs `environment` `all`, `types` `all` and `names` `all`, with `check` on. | [Plan](/What-to-run/Plan) |
-| Read live into a pull request | `pull`, `readOnly` cleared | `environment`: `all`, `nonprod` or `prod`. `types`: `all` or a `;` list. `names`: `all` or a `;` list. | [Pull](/What-to-run/Pull) |
-| Push one object | `push`, `readOnly` cleared | `environment`: `all`, `nonprod` or `prod`. `types`: one type name. `names`: one name or a `;` list. `delete`: `false`. | [Push](/What-to-run/Push) |
-| Push a type | `push`, `readOnly` cleared | `environment`: `all`, `nonprod` or `prod`. `types`: one type name or a `;` list. `names`: `all`. `delete`: `false`. | [Push](/What-to-run/Push) |
+| Read live into a pull request | `pull`, `write` selected | `environment`: `all`, `nonprod` or `prod`. `types`: `all` or a `;` list. `names`: `all` or a `;` list. | [Pull](/What-to-run/Pull) |
+| Push one object | `push`, `write` selected | `environment`: `all`, `nonprod` or `prod`. `types`: one type name. `names`: one name or a `;` list. `delete`: `false`. | [Push](/What-to-run/Push) |
+| Push a type | `push`, `write` selected | `environment`: `all`, `nonprod` or `prod`. `types`: one type name or a `;` list. `names`: `all`. `delete`: `false`. | [Push](/What-to-run/Push) |
 | Copy nonprod to prod | `copy` on the command line, then `push` | Command: `copy nonprod prod`, with optional `--types`, `--names` and `--dir`. Then `push` with `environment`: `prod`. | [Copy nonprod to prod](/What-to-run/Copy-nonprod-to-prod) |
 | Regenerate the README and apps.csv | `doc` on the command line | Command: `doc`, with optional `--dir`. | [Regenerate the README and apps.csv](/What-to-run/Regenerate-docs) |
-| Delete live-only objects | `push`, `readOnly` cleared | `delete`: `true`. `environment`: `all`, `nonprod` or `prod`. `types` and `names`: the live-only objects. | [Delete live-only objects](/What-to-run/Delete-live-only-objects) |
+| Delete live-only objects | `push`, `write` selected | `delete`: `true`. `environment`: `all`, `nonprod` or `prod`. `types` and `names`: the live-only objects. | [Delete live-only objects](/What-to-run/Delete-live-only-objects) |
 
 Commands run on your machine. Their options are on [Commands](/Reference/Commands).

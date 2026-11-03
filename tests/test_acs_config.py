@@ -266,6 +266,21 @@ class PullTests(ACSTestCase):
         for path in self.root.rglob("*.toml"):
             self.assertNotIn("SECRET-VALUE", path.read_text(encoding="utf-8"))
 
+    def test_hec_push_patches_without_token_and_prints_it(self):
+        before = {"spec": {"name": "collector", "defaultIndex": "old", "allowedIndexes": ["shared"],
+                           "disabled": False, "useAck": False},
+                  "token": "SECRET-VALUE"}
+        after = {"spec": {"name": "collector", "defaultIndex": "shared", "allowedIndexes": ["shared"],
+                           "disabled": False, "useAck": False},
+                 "token": "SECRET-VALUE"}
+        fake = FakeACS({("GET", "/inputs/http-event-collectors"):
+                        Seq({"http-event-collectors": [before]}, {"http-event-collectors": [after]})})
+        code, out, err = self.run_cli(fake, "push", "prod", "--types", "hec-tokens")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(fake.writes(), [
+            ("PATCH", "/inputs/http-event-collectors/collector", {"defaultIndex": "shared"})])
+        self.assertIn("collector: SECRET-VALUE", out)
+
     def test_app_permissions_pull(self):
         fake = FakeACS({("GET", "/permissions/apps"):
                         {"apps": [{"name": "my_app", "perms": {"read": ["*"], "write": ["sc_admin"]}}]}})

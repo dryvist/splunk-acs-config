@@ -620,6 +620,14 @@ def push_command(root, env, types, names, allow_delete):
     if left:
         raise ACSConfigError(f"{len(left)} differences remain after push")
     print(color_line("NO DIFFERENCES after push"))
+    hecs = {c["key"] for c in changes if c["type"] == "hec-tokens" and c["op"] in ("CREATE", "UPDATE")}
+    if hecs:
+        spec = TYPES["hec-tokens"]
+        print(pipeline_message("section", "HEC tokens created or updated"))
+        for item in paged_items(spec["list"], spec["items"]):
+            hec = item.get("spec", item)
+            if hec.get("name") in hecs:
+                print(f"{hec['name']}: {item.get('token') or hec.get('token')}")
 
 
 def compact(t, defaults, values, keep):

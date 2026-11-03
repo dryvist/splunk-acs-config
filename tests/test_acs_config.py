@@ -90,11 +90,18 @@ class TomlTests(unittest.TestCase):
         self.assertEqual(acs_config.key_changes("indexes", "pan", {"name": "pan", "selfStorageBucketPath": None},
                                                 {"name": "pan", "selfStorageBucketPath": ""}), [])
 
+    @mock.patch.dict(os.environ, ENV, clear=True)
     def test_hec_default_host_set_by_the_stack_is_not_a_change(self):
         live = {"name": "a b", "defaultHost": "stack.example", "defaultSource": "", "disabled": False, "useAck": False}
         self.assertEqual(acs_config.key_changes("hec-tokens", "a b", {"name": "a b", "disabled": False, "useAck": False},
                                                 live), [])
         self.assertEqual(len(acs_config.key_changes("hec-tokens", "a b", {"name": "a b", "defaultHost": "h"}, live)), 1)
+        # An unset defaultHost is sent blank only when the live value is the stack default.
+        repo = {"name": "a b", "defaultIndex": "new", "disabled": False, "useAck": False}
+        sh = {**live, "defaultHost": "sh-1.stack.splunkcloud.com"}
+        self.assertEqual(acs_config.key_changes("hec-tokens", "a b", repo, sh)[0]["blank"], {"defaultHost": ""})
+        self.assertEqual(acs_config.key_changes("hec-tokens", "a b", repo, live)[0]["blank"], {})
+        self.assertEqual(acs_config.key_changes("hec-tokens", "a b", repo, None)[0]["blank"], {"defaultHost": ""})
 
     def test_names_split_only_on_semicolons(self):
         self.assertEqual(acs_config.select_names("my token; pan"), {"my token", "pan"})

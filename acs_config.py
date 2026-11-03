@@ -361,6 +361,11 @@ def canon(value):
     return sorted(value, key=str) if isinstance(value, list) else value
 
 
+def same_value(value):
+    """A value as plan compares it: "" and null are the same."""
+    return None if value == "" else canon(value)
+
+
 def normalize(t, item):
     if t == "hec-tokens":
         item = item.get("spec", item)
@@ -379,7 +384,7 @@ def normalize(t, item):
     fields = type_fields(t, item)
     optional = TYPES[t].get("optional", ())
     return {k: canon(v) for k, v in item.items()
-            if k in fields and v is not None and not (k in optional and not v)}
+            if k in fields and v not in (None, "") and not (k in optional and not v)}
 
 
 def all_default(t, record):
@@ -478,7 +483,7 @@ def key_changes(t, key, eff, live):
         return [change(t, key, "CREATE", eff=eff)]
     patch_fields = spec.get("patch_fields", tuple(f for f in type_fields(t, live, eff) if f != spec["key"]))
     fields = {f: (live.get(f), eff.get(f)) for f in patch_fields
-              if canon(live.get(f)) != canon(eff.get(f))}
+              if same_value(live.get(f)) != same_value(eff.get(f))}
     return [change(t, key, "UPDATE", fields=fields, eff=eff)] if fields else []
 
 

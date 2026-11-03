@@ -7,7 +7,7 @@ A pull reads the live stack into the repository files and opens one pull request
 1. Select **Pipelines**.
 2. Open the config pipeline.
 3. Select **Run pipeline**.
-4. Set `action` to `pull`.
+4. Set `action` to `pull`, and clear `readOnly`.
 5. Set `environment` to `all`, `nonprod` or `prod`.
 6. Set `types` to `all`, or to type names separated by `;`.
 7. Set `names` to `all`, or to names separated by `;`.

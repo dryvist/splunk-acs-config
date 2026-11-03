@@ -29,7 +29,8 @@ python acs_config.py doc [--dir D]
 ## Pipeline parameters
 
 - `environment`: `all`, or one name from `environments.toml`.
-- `action`: `plan`, `pull` or `push`.
+- `action`: `pull` or `push`.
+- `readOnly`: `true` runs only the plan. It is the default.
 - `types`: `all`, or type names separated by `;`. See [Object types](/Reference/Object-types).
 - `names`: `all`, or stanza names separated by `;`.
 - `check`: fails the plan when differences exist.

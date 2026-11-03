@@ -23,13 +23,16 @@ parameters:
       - nonprod
       - prod
   - name: action
-    displayName: Action - plan = compare only, pull = read live into a pull request, push = write files to the stack
+    displayName: Action - pull = read live into a pull request, push = write files to the stack
     type: string
-    default: plan
+    default: push
     values:
-      - plan
       - pull
       - push
+  - name: readOnly
+    displayName: Read-only - run the plan only, with no pull request and no Push stages
+    type: boolean
+    default: true
   - name: types
     displayName: Object types - all, or any of indexes;hec-tokens;ip-allowlists;ip-allowlists-v6;outbound-ports;outbound-ports-v6;roles;limits;app-permissions;private-apps;splunkbase-apps
     type: string
@@ -62,6 +65,7 @@ extends:
       - prod
     environment: ${{ parameters.environment }}
     action: ${{ parameters.action }}
+    readOnly: ${{ parameters.readOnly }}
     types: ${{ parameters.types }}
     check: ${{ parameters.check }}
     names: ${{ parameters.names }}

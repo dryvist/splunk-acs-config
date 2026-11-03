@@ -86,6 +86,9 @@ class TomlTests(unittest.TestCase):
         with self.assertRaisesRegex(acs_config.ACSConfigError, "unknown type: index;role. Types:"):
             acs_config.select_types("index role", acs_config.TYPES)
 
+    def test_names_split_only_on_semicolons(self):
+        self.assertEqual(acs_config.select_names("my token; pan"), {"my token", "pan"})
+
     def test_writer_rejects_unsupported_values_as_config_errors(self):
         with self.assertRaisesRegex(acs_config.ACSConfigError, "unsupported TOML value"):
             acs_config.dump_toml({"unsupported": 1.5})
@@ -151,7 +154,7 @@ class PullTests(ACSTestCase):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("new"), index("pan", searchableDays=200)]}})
         with mock.patch.dict(os.environ, {"TF_BUILD": "True"}):
             code, out, _ = self.run_cli(
-                fake, "pull", "prod", "--types", "indexes", "--names", "new pan retired")
+                fake, "pull", "prod", "--types", "indexes", "--names", "new;pan;retired")
         self.assertEqual(code, 0)
         self.assertIn("\033[33mchanged objects/indexes.toml\033[0m", out)
         self.assertNotIn("retired", self.read("objects/indexes.toml"))
@@ -344,7 +347,7 @@ class PullTests(ACSTestCase):
             {"name": "pan_analyst", "imported": {"roles": ["user"]}, "srchIndexesAllowed": ["pan"],
              "srchDiskQuota": 100, "srchJobsQuota": 3, "rtSrchJobsQuota": 6},
         ]}})
-        self.run_cli(fake, "pull", "prod", "--types", "roles", "--names", "admin pan_analyst")
+        self.run_cli(fake, "pull", "prod", "--types", "roles", "--names", "admin;pan_analyst")
         self.assertNotIn("admin", self.read("objects/roles.toml"))
         self.assertEqual(self.read("objects/roles.toml")["pan_analyst"], {
             "environments": ["prod"], "importedRoles": ["user"], "srchIndexesAllowed": ["pan"]})
@@ -401,7 +404,7 @@ class PlanTests(ACSTestCase):
         fake = FakeACS({("GET", "/roles"): {"roles": []},
                         ("GET", "/indexes"): {"indexes": [index("shared", searchableDays=170)]}})
         code, out, _ = self.run_cli(fake, "plan", "prod", "--types", "indexes roles",
-                                    "--names", "shared analyst")
+                                    "--names", "shared;analyst")
         self.assertEqual(code, 0)
         self.assertIn("CREATE roles/analyst", out)
         self.assertNotIn("indexes/shared", out)
@@ -422,7 +425,7 @@ class PlanTests(ACSTestCase):
 
     def test_no_differences(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("shared", searchableDays=180), index("pan")]}})
-        _, out, _ = self.run_cli(fake, "plan", "prod", "--types", "indexes", "--names", "shared pan")
+        _, out, _ = self.run_cli(fake, "plan", "prod", "--types", "indexes", "--names", "shared;pan")
         self.assertIn("NO DIFFERENCES", out.splitlines())
 
     def test_plan_check_fails_on_differences(self):
@@ -519,7 +522,7 @@ class PushTests(ACSTestCase):
         before = {"indexes": [index("shared", searchableDays=170)]}
         after = {"indexes": [index("shared", searchableDays=180), index("pan")]}
         fake = FakeACS({("GET", "/indexes"): Seq(before, after)})
-        code, out, _ = self.run_cli(fake, "push", "prod", "--types", "indexes", "--names", "shared pan")
+        code, out, _ = self.run_cli(fake, "push", "prod", "--types", "indexes", "--names", "shared;pan")
         self.assertEqual(code, 0, out)
         self.assertEqual(fake.writes(), [
             ("POST", "/indexes", {"name": "pan", "datatype": "event", "maxDataSizeMB": 0,
@@ -534,7 +537,7 @@ class PushTests(ACSTestCase):
         fake = FakeACS({("GET", "/indexes"): Seq(before, before, after)},
                        status={("PATCH", "/indexes/shared"): 202})
         with mock.patch.object(acs_config.time, "sleep") as sleep:
-            code, _, _ = self.run_cli(fake, "push", "prod", "--types", "indexes", "--names", "shared pan")
+            code, _, _ = self.run_cli(fake, "push", "prod", "--types", "indexes", "--names", "shared;pan")
         self.assertEqual(code, 0)
         sleep.assert_called_once_with(10)
         self.assertEqual([c[0] for c in fake.writes()], ["PATCH"])
@@ -543,7 +546,7 @@ class PushTests(ACSTestCase):
         live = {"indexes": [index("shared", searchableDays=180), index("pan"), index("extra", searchableDays=30)]}
         fake = FakeACS({("GET", "/indexes"): live})
         code, out, err = self.run_cli(fake, "push", "prod", "--types", "indexes",
-                                      "--names", "shared pan extra")
+                                      "--names", "shared;pan;extra")
         self.assertEqual(code, 1)
         self.assertEqual(fake.writes(), [])
         self.assertEqual(err.count("\n"), 1)
@@ -554,7 +557,7 @@ class PushTests(ACSTestCase):
         after = {"indexes": [index("shared", searchableDays=180), index("pan")]}
         fake = FakeACS({("GET", "/indexes"): Seq(before, after)})
         code, out, _ = self.run_cli(fake, "push", "prod", "--types", "indexes",
-                                    "--names", "shared pan extra", "--delete")
+                                    "--names", "shared;pan;extra", "--delete")
         self.assertEqual(code, 0, out)
         self.assertEqual(fake.writes(), [("DELETE", "/indexes/extra", None)])
         self.assertIn("DATA LOSS: deleting index extra", out)

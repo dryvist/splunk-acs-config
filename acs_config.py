@@ -252,7 +252,8 @@ def select_types(raw, allowed):
 
 
 def select_names(raw):
-    return None if raw.strip() in ("", "all") else set(raw.replace(";", " ").split())
+    # Names can contain spaces, so only ; separates them.
+    return None if raw.strip() in ("", "all") else {name.strip() for name in raw.split(";") if name.strip()}
 
 
 def split_table(path, envs, name, table):

@@ -1,4 +1,4 @@
-# Pull requests, scheduled runs and read-only runs only plan every environment.
+# Pull requests, scheduled runs and runs without write only plan every environment.
 # A pull run reads every environment in parallel, then one job writes them in order to acs-pull/<build id>
 # and opens one pull request.
 # After the plan, a push run and a run on merge to main add a Push stage per environment
@@ -21,10 +21,10 @@ parameters:
     values:
       - pull
       - push
-  # true runs only the plan, with no write jobs.
-  - name: readOnly
+  # true adds the pull request (pull) or the Push stages (push) after the plan.
+  - name: write
     type: boolean
-    default: true
+    default: false
   - name: types
     type: string
     default: all
@@ -40,11 +40,11 @@ parameters:
 
 stages:
   - stage: plan
-    displayName: ${{ iif(and(eq(parameters.action, 'pull'), not(parameters.readOnly), notIn(variables['Build.Reason'], 'PullRequest', 'Schedule')), 'Read live', 'Plan (read-only)') }}
+    displayName: ${{ iif(and(eq(parameters.action, 'pull'), parameters.write, notIn(variables['Build.Reason'], 'PullRequest', 'Schedule')), 'Read live', 'Plan (read-only)') }}
     jobs:
       - ${{ each env in parameters.environments }}:
           - ${{ if in(parameters.environment, 'all', env) }}:
-              - ${{ if not(and(eq(parameters.action, 'pull'), not(parameters.readOnly), notIn(variables['Build.Reason'], 'PullRequest', 'Schedule'))) }}:
+              - ${{ if not(and(eq(parameters.action, 'pull'), parameters.write, notIn(variables['Build.Reason'], 'PullRequest', 'Schedule'))) }}:
                   - job: plan_${{ replace(env, '-', '_') }}
                     displayName: Plan ${{ env }}
                     pool: ${{ parameters.pool }}
@@ -71,7 +71,7 @@ stages:
                           action: fetch
                           types: ${{ parameters.types }}
                           names: ${{ parameters.names }}
-      - ${{ if and(eq(parameters.action, 'pull'), not(parameters.readOnly), notIn(variables['Build.Reason'], 'PullRequest', 'Schedule')) }}:
+      - ${{ if and(eq(parameters.action, 'pull'), parameters.write, notIn(variables['Build.Reason'], 'PullRequest', 'Schedule')) }}:
           - job: pull
             displayName: Pull ${{ parameters.environment }} into one pull request
             dependsOn:
@@ -86,7 +86,7 @@ stages:
                   action: pull
                   types: ${{ parameters.types }}
                   names: ${{ parameters.names }}
-  - ${{ if or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), and(eq(parameters.action, 'push'), not(parameters.readOnly), notIn(variables['Build.Reason'], 'PullRequest', 'Schedule'))) }}:
+  - ${{ if or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), and(eq(parameters.action, 'push'), parameters.write, notIn(variables['Build.Reason'], 'PullRequest', 'Schedule'))) }}:
       - ${{ each env in parameters.environments }}:
           - ${{ if in(parameters.environment, 'all', env) }}:
               - stage: push_${{ replace(env, '-', '_') }}

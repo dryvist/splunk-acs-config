@@ -9,7 +9,7 @@ Deleting an index deletes its data. Some types have no delete operation. See [Ob
 1. Select **Pipelines**.
 2. Open the config pipeline.
 3. Select **Run pipeline**.
-4. Set `action` to `push`, clear `readOnly`, and set `delete` to `true`.
+4. Set `action` to `push`, select `write`, and set `delete` to `true`.
 5. Set `environment`, `types` and `names` to the objects to check.
 6. Select **Run**.
 7. Wait for the **Plan (read-only)** stage to finish.

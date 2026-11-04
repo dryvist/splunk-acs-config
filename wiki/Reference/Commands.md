@@ -11,7 +11,6 @@ python acs_config.py pull <env|all> [--dir D] [--types "t1;t2"] [--names "n1;n2"
 python acs_config.py fetch <env> --out FILE [--dir D] [--types ...] [--names ...]
 python acs_config.py plan <env> [--check] [--dir D] [--types ...] [--names ...]
 python acs_config.py push <env> [--dir D] [--types ...] [--names ...] [--delete]
-python acs_config.py copy <from-env> <to-env> [--dir D] [--types ...] [--names ...]
 python acs_config.py doc [--dir D]
 ~~~
 

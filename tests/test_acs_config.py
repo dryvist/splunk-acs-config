@@ -200,6 +200,21 @@ class PullTests(ACSTestCase):
             self.run_cli(fake, "pull", env, "--types", "indexes")
         self.assertEqual(pulled, self.read("objects/indexes.toml"))
 
+    def test_fetch_and_pull_leave_out_a_stack_set_host(self):
+        fake = FakeACS({("GET", "/inputs/http-event-collectors"): {"http_event_collectors": [
+            {"spec": {"name": "from_stack", "defaultHost": f"sh-1.{ENV['SPLUNK_STACK']}.splunkcloud.com"}},
+            {"spec": {"name": "by_hand", "defaultHost": "host.example"}},
+        ]}})
+        out = self.root.parent / "live" / "live-prod" / "prod.json"
+        self.assertEqual(self.run_cli(fake, "fetch", "prod", "--types", "hec-tokens", "--out", str(out))[0], 0)
+        self.assertEqual(
+            self.run_cli(fake, "pull", "prod", "--types", "hec-tokens", "--live-dir", str(out.parents[1]))[0], 0)
+        tokens = self.read("objects/hec-tokens.toml")
+        self.assertNotIn("defaultHost", tokens["from_stack"])
+        self.assertEqual(tokens["by_hand"]["defaultHost"], "host.example")
+        _, plan, _ = self.run_cli(fake, "plan", "prod", "--types", "hec-tokens")
+        self.assertEqual(plan.splitlines()[-1], "NO DIFFERENCES")
+
     def test_new_object_keeps_only_differences_from_defaults(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("newidx", searchableDays=30)]}})
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes", "--names", "newidx")
@@ -647,6 +662,8 @@ class PullLayoutTests(ACSTestCase):
              {"nonprod": {}, "prod": {"a": 1}}, {"overrides": {"nonprod": {"unset": ["a"]}}}),
             ("both environments unset the default", {"a": 1},
              {"nonprod": {}, "prod": {}}, {"unset": ["a"]}),
+            ("a blank default needs no unset", {"a": ""},
+             {"nonprod": {}, "prod": {}}, {}),
         )
         for name, defaults, values, expected in cases:
             with self.subTest(name=name):

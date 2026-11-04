@@ -65,7 +65,7 @@ what each environment wants with what it inherits. If every environment wants th
 from what it inherits, pull writes one object base line; if that value is missing, it writes one base `unset`. If
 environments want different values, pull writes an override for each environment whose value differs from what it
 inherits; a missing value is an environment `unset`. If no environment differs from what it inherits, pull writes no
-line. On the next pull, object lines that a new `[default]` makes the same are removed.
+line. A blank value counts as missing. On the next pull, object lines that a new `[default]` makes the same are removed.
 
 ## Push scope
 

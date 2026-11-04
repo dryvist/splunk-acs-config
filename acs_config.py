@@ -610,8 +610,8 @@ def compact(t, defaults, values, keep):
     overrides = {env: dict(value) for env, value in (keep.get("overrides") or {}).items()}
     unset = []
     for field in sorted(set().union(*values.values(), *inherited.values()) - {TYPES[t]["key"]}):
-        want = {env: canon(value.get(field)) for env, value in values.items()}
-        differ = [env for env in want if want[env] != canon(inherited[env].get(field))]
+        want = {env: same_value(value.get(field)) for env, value in values.items()}
+        differ = [env for env in want if want[env] != same_value(inherited[env].get(field))]
         first = next(iter(want.values()))
         if differ and all(value == first for value in want.values()):
             if first is None:
@@ -632,10 +632,17 @@ def compact(t, defaults, values, keep):
     return out
 
 
+def pull_values(t, names):
+    """Live objects as a pull stores them: without the values Splunk sets from the stack."""
+    stack_set = TYPES[t].get("stack_set", ())
+    return {key: {f: v for f, v in record.items() if not (f in stack_set and stack_default(v))}
+            for key, record in live_objects(t, names).items()}
+
+
 def pull_type(root, envs, env, t, names, live=None):
     defaults, repo = load_type(root, t, envs)
     if live is None:
-        live = live_objects(t, names)
+        live = pull_values(t, names)
     live = {key: record for key, record in live.items() if key in repo or not all_default(t, record)}
     for key in sorted(set(live) | {k for k in repo if names is None or k in names}):
         existing = repo.get(key, {})
@@ -675,7 +682,7 @@ def fetch_command(env, types, names, out):
     live = {}
     for t in types:
         print(pipeline_message("section", f"{t} ({env} live)"))
-        live[t] = live_objects(t, names)
+        live[t] = pull_values(t, names)
         print(f"{len(live[t])} objects")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(live, indent=1, sort_keys=True), encoding="utf-8")

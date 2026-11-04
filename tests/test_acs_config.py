@@ -760,17 +760,6 @@ class InferenceTests(ACSTestCase):
             self.assertEqual(out.splitlines()[-1], "NO DIFFERENCES")
 
 
-class CopyTests(ACSTestCase):
-    def test_copy_prod_to_nonprod_edits_files_only(self):
-        code, out, _ = self.run_cli(FakeACS(), "copy", "prod", "nonprod", "--types", "indexes")
-        self.assertEqual(code, 0)
-        indexes = self.read("objects/indexes.toml")
-        self.assertEqual(indexes["shared"], {"searchableDays": 180})
-        self.assertEqual(indexes["retired"]["environments"], ["prod", "nonprod"])
-        self.assertNotIn("nonprod", indexes["default"])
-        self.assertIn("changed objects/indexes.toml", out)
-
-
 class DocTests(ACSTestCase):
     def test_doc_lists_counts_pushed_types_and_defaults_without_objects(self):
         code, _, _ = self.run_cli(FakeACS(), "doc")

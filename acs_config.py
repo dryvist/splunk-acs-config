@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pull, plan, push, copy and document Splunk Cloud ACS settings stored as TOML files."""
+"""Pull, plan, push and document Splunk Cloud ACS settings stored as TOML files."""
 
 import argparse
 import csv
@@ -798,33 +798,6 @@ def fetch_command(env, types, names, out):
     out.write_text(json.dumps(live, indent=1, sort_keys=True), encoding="utf-8")
 
 
-def copy_overrides(table, src, dst):
-    overrides = dict(table.get("overrides") or {})
-    if overrides.get(src):
-        overrides[dst] = overrides[src]
-    else:
-        overrides.pop(dst, None)
-    set_overrides(table, overrides)
-
-
-def copy_command(root, src, dst, types, names):
-    envs = load_environments(root)
-    changed = False
-    for t in types:
-        print(pipeline_message("section", f"{t} (copy {src} to {dst})"))
-        defaults, objects = load_type(root, t, envs)
-        copy_overrides(defaults, src, dst)
-        for key, raw in objects.items():
-            if (names is not None and key not in names) or not in_env(raw, src):
-                continue
-            if "environments" in raw and dst not in raw["environments"]:
-                raw["environments"].append(dst)
-            copy_overrides(raw, src, dst)
-        changed = store_type(root, t, defaults, objects) or changed
-    if not changed:
-        print("NO CHANGES")
-
-
 def fmt(value):
     if isinstance(value, list):
         text = ", ".join(str(v) for v in value)
@@ -928,10 +901,6 @@ def build_parser():
     push.add_argument("env")
     push.add_argument("--delete", action="store_true")
     add_common(push)
-    copy = commands.add_parser("copy")
-    copy.add_argument("src")
-    copy.add_argument("dst")
-    add_common(copy)
     doc = commands.add_parser("doc")
     doc.add_argument("--dir", default=".")
     return parser
@@ -945,11 +914,6 @@ def main(argv=None):
             write_doc(root)
             return 0
         envs = load_environments(root)
-        if args.command == "copy":
-            env_types(envs, args.src)
-            types = select_types(args.types, env_types(envs, args.dst))
-            copy_command(root, args.src, args.dst, types, select_names(args.names))
-            return 0
         names = select_names(args.names)
         if args.command == "pull":
             # all pulls in reverse name order, so prod sets the defaults before nonprod.

@@ -106,6 +106,14 @@ class TomlTests(unittest.TestCase):
     def test_names_split_only_on_semicolons(self):
         self.assertEqual(acs_config.select_names("my token; pan"), {"my token", "pan"})
 
+    def test_type_writer_expands_only_lists_over_two_items(self):
+        dumped = acs_config.dump_type("hec-tokens", {}, {
+            "a": {"name": "a", "allowedIndexes": ["x", "y"]},
+            "b": {"name": "b", "overrides": {"prod": {"allowedIndexes": ["x", "y", "z"]}}}})
+        self.assertIn('allowedIndexes = ["x", "y"]\n', dumped)
+        self.assertIn('allowedIndexes = [\n    "x",\n    "y",\n    "z",\n]\n', dumped)
+        self.assertEqual(tomllib.loads(dumped)["b"]["prod"]["allowedIndexes"], ["x", "y", "z"])
+
     def test_type_writer_output(self):
         dumped = acs_config.dump_type(
             "indexes",
@@ -120,15 +128,11 @@ class TomlTests(unittest.TestCase):
             "searchableDays = 30\n"
             "\n"
             '["my index"]\n'
-            "environments = [\n"
-            '    "prod",\n'
-            "]\n"
+            'environments = ["prod"]\n'
             "maxDataSizeMB = 1\n"
             "\n"
             '["my index".prod]\n'
-            "unset = [\n"
-            '    "searchableDays",\n'
-            "]\n"
+            'unset = ["searchableDays"]\n'
         ))
         self.assertEqual(tomllib.loads(dumped), {
             "default": {"searchableDays": 90, "nonprod": {"searchableDays": 30}},

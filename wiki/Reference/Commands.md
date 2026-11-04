@@ -38,8 +38,7 @@ python acs_config.py doc [--dir D]
 
 ## Environment variables
 
-- `STACK_TOKEN` is used when set. Otherwise the tool uses `ACS_TOKEN`. The pipeline sets `STACK_TOKEN` from the
-  `ACS_TOKEN` variable.
+- The tool reads the token from `STACK_TOKEN`. The pipeline sets `STACK_TOKEN` from the `ACS_TOKEN` variable.
 - `SPLUNK_STACK` names the stack.
 - `SPLUNK_SEARCH_HEAD` is optional and is ignored when empty or unresolved.
 - `SPLUNKBASE_USERNAME` and `SPLUNKBASE_PASSWORD` are used only when a Splunkbase app change is pushed.

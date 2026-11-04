@@ -137,9 +137,9 @@ def api_base():
 
 def request(method, path, body=None, form=False, extra_headers=None):
     external = path.startswith("https://")
-    token = env_value("STACK_TOKEN") or env_value("ACS_TOKEN")
+    token = env_value("STACK_TOKEN")
     if not external and not token:
-        raise ACSConfigError("STACK_TOKEN or ACS_TOKEN is not set")
+        raise ACSConfigError("STACK_TOKEN is not set")
     url = path if external else api_base() + path
     data = None if body is None else (
         urlencode(body).encode("utf-8") if form else json.dumps(body).encode("utf-8"))
@@ -161,12 +161,7 @@ def request(method, path, body=None, form=False, extra_headers=None):
         raise ACSConfigError(f"HTTP {err.code} {method} {url}: {message}") from None
     except URLError as err:
         raise ACSConfigError(f"{method} {url}: {err.reason}") from None
-    except UnicodeDecodeError as err:
-        raise ACSConfigError(f"invalid UTF-8 response from {method} {url}: {err}") from None
-    try:
-        data = text if external else (json.loads(text) if text.strip() else None)
-    except json.JSONDecodeError as err:
-        raise ACSConfigError(f"invalid JSON from {method} {url}: {err}") from None
+    data = text if external else (json.loads(text) if text.strip() else None)
     return data, status
 
 
@@ -456,8 +451,6 @@ def live_objects(t, names=None):
     live = {}
     for record in records:
         key = str(record[key_field])
-        if key == "default":
-            raise ACSConfigError(f"{t}: live object 'default' is reserved")
         if key in spec.get("skip", ()) or (names is not None and key not in names):
             continue
         if spec.get("subnet") and not record.get("subnets"):

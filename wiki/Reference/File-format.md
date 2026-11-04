@@ -75,9 +75,12 @@ Here `my_app` inherits `read` and replaces `write`.
 
 ## Pull behavior
 
-A pull keeps explicit defaults and stores only values that differ from the resolved layers above an object. When live
-data lacks an inherited field, the pull records it in `unset`. A full pull may infer a shared default from the live
-objects. For what each environment writes during a pull, see [Pull](/What-to-run/Pull).
+Pull never writes or changes `[default]`; a person adds defaults there by hand. For each object field, pull compares
+what each environment wants with what it inherits. If every environment wants the same value and at least one differs
+from what it inherits, pull writes one object base line; if that value is missing, it writes one base `unset`. If
+environments want different values, pull writes an override for each environment whose value differs from what it
+inherits; a missing value is an environment `unset`. If no environment differs from what it inherits, pull writes no
+line. On the next pull, object lines that a new `[default]` makes the same are removed.
 
 ## Push scope
 

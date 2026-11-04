@@ -9,7 +9,6 @@ import os
 import re
 import sys
 import time
-from collections import Counter
 from pathlib import Path
 import tomllib
 import tomli_w
@@ -48,7 +47,7 @@ TYPES = {
                          "splunkArchivalRetentionDays"),
         # ACS OpenAPI IndexInfo defaults.
         "splunk_defaults": {"datatype": "event", "maxDataSizeMB": 0, "searchableDays": 90},
-        # Stored only when set; never inferred into [default] or unset.
+        # Stored only when set.
         "optional": ("mdlIndex", "selfStorageBucketPath", "splunkArchivalRetentionDays"),
         # A live index with only Splunk default values that the files do not list is not pulled,
         # planned or deleted.
@@ -281,23 +280,14 @@ def store_type(root, t, defaults, objects):
     return False
 
 
-def set_overrides(raw, overrides):
-    if overrides:
-        raw["overrides"] = overrides
-    else:
-        raw.pop("overrides", None)
-
-
 def in_env(raw, env):
     return "environments" not in raw or env in raw["environments"]
 
 
-def layers(t, defaults, raw, env, own_overrides=True):
-    out = [TYPES[t].get("splunk_defaults", {}), defaults,
-           (defaults.get("overrides") or {}).get(env) or {}, raw]
-    if own_overrides:
-        out.append((raw.get("overrides") or {}).get(env) or {})
-    return out
+def layers(t, defaults, raw, env):
+    return [TYPES[t].get("splunk_defaults", {}), defaults,
+            (defaults.get("overrides") or {}).get(env) or {}, raw,
+            (raw.get("overrides") or {}).get(env) or {}]
 
 
 def pushed(t, defaults, raw, env):
@@ -307,9 +297,9 @@ def pushed(t, defaults, raw, env):
     return flag
 
 
-def merged(t, defaults, raw, env, own_overrides=True):
+def merged(t, defaults, raw, env):
     eff = {}
-    for layer in layers(t, defaults, raw, env, own_overrides):
+    for layer in layers(t, defaults, raw, env):
         eff.update({k: v for k, v in layer.items() if k not in META})
         for k in layer.get("unset", ()):
             eff.pop(k, None)
@@ -614,128 +604,62 @@ def push_command(root, env, types, names, allow_delete):
 
 
 def compact(t, defaults, values, keep):
-    """Rebuild an object with the fewest lines that give each env its values; a tie keeps the base line."""
-    key = TYPES[t]["key"]
+    """Rebuild an object: one base line when every env has the same value, otherwise an override per env that differs."""
     inherited = {env: merged(t, defaults, {}, env) for env in values}
-    fields = (set().union(*(value.keys() for value in values.values())) |
-              set().union(*(value.keys() for value in inherited.values()))) - {key}
     out = {field: value for field, value in keep.items() if field != "overrides"}
     overrides = {env: dict(value) for env, value in (keep.get("overrides") or {}).items()}
-    unset = set()
-    for field in sorted(fields):
+    unset = []
+    for field in sorted(set().union(*values.values(), *inherited.values()) - {TYPES[t]["key"]}):
         want = {env: canon(value.get(field)) for env, value in values.items()}
-        base_values = {env: canon(value.get(field)) for env, value in inherited.items()}
-        # Ties keep a base line, then the value of the env pulled first (reverse name order).
-        order = sorted(values, reverse=True)
-        choices = [(sum(base_values[env] != want[env] for env in values), 1, 0, "", False, None)]
-        distinct = {json.dumps(value, sort_keys=True): value for value in want.values()}
-        choices.extend((1 + sum(value != wanted for wanted in want.values()), 0,
-                        min(i for i, env in enumerate(order) if want[env] == value), text, True, value)
-                       for text, value in distinct.items())
-        *_, set_base, base = min(choices)
-        result = {env: base for env in values} if set_base else base_values
-        if set_base:
-            if base is None:
-                unset.add(field)
+        differ = [env for env in want if want[env] != canon(inherited[env].get(field))]
+        first = next(iter(want.values()))
+        if differ and all(value == first for value in want.values()):
+            if first is None:
+                unset.append(field)
             else:
-                out[field] = base
-        for env in values:
-            if result[env] != want[env]:
+                out[field] = first
+        elif differ:
+            for env in differ:
                 override = overrides.setdefault(env, {})
                 if want[env] is None:
                     override.setdefault("unset", []).append(field)
                 else:
                     override[field] = want[env]
     if unset:
-        out["unset"] = sorted(unset)
-    for value in overrides.values():
-        if "unset" in value:
-            value["unset"] = sorted(set(value["unset"]))
-    overrides = {env: value for env, value in overrides.items() if value}
+        out["unset"] = unset
     if overrides:
         out["overrides"] = overrides
     return out
 
 
-def common_values(t, live):
-    key = TYPES[t]["key"]
-    values = {}
-    for field in type_fields(t, *live.values()):
-        if field == key:
-            continue
-        counts = Counter(json.dumps(canon(raw.get(field)), sort_keys=True) for raw in live.values())
-        if counts:
-            value = json.loads(min(counts, key=lambda text: (-counts[text], text)))
-            if value is not None:
-                values[field] = value
-    return values
-
-
-def infer_defaults(t, defaults, env, live):
-    if TYPES[t].get("subnet"):
-        return
-    optional = TYPES[t].get("optional", ())
-    common = {f: v for f, v in common_values(t, live).items() if f not in optional}
-    builtins = TYPES[t].get("splunk_defaults", {})
-    for field in optional:
-        defaults.pop(field, None)
-    if not any(field not in META for field in defaults):
-        defaults.update({f: v for f, v in common.items() if canon(v) != canon(builtins.get(f))})
-    overrides = dict(defaults.get("overrides") or {})
-    if env not in overrides:
-        base = merged(t, defaults, {}, env, own_overrides=False)
-        values = {f: v for f, v in common.items() if canon(v) != canon(base.get(f))}
-        if values:
-            overrides[env] = values
-            set_overrides(defaults, overrides)
-
-
 def pull_type(root, envs, env, t, names, live=None):
-    spec = TYPES[t]
     defaults, repo = load_type(root, t, envs)
     if live is None:
         live = live_objects(t, names)
     live = {key: record for key, record in live.items() if key in repo or not all_default(t, record)}
-    if names is None:
-        infer_defaults(t, defaults, env, live)
-    keys = set(live) | {k for k in repo if names is None or k in names}
-    for key in sorted(keys):
-        if key in live:
-            existing = repo.get(key)
-            if existing is None:
-                object_envs = [env]
-            elif "environments" in existing:
-                object_envs = list(existing["environments"])
-                if env not in object_envs:
-                    object_envs.append(env)
-            else:
-                object_envs = list(envs)
-            values = {e: {f: v for f, v in merged(t, defaults, existing, e).items()
-                          if f != spec["key"]}
-                      for e in object_envs if e != env}
-            values[env] = {f: v for f, v in merged(t, defaults, existing or {}, env).items()
-                           if f in spec.get("repo_only", ())}
-            values[env].update({f: v for f, v in live[key].items() if f != spec["key"]})
-            keep = {f: existing[f] for f in ("push",) if existing and f in existing}
-            push_overrides = {e: {"push": value["push"]}
-                              for e, value in (existing.get("overrides") or {}).items()
-                              if "push" in value} if existing else {}
-            if push_overrides:
-                keep["overrides"] = push_overrides
-            raw = compact(t, defaults, values, keep)
-            if set(object_envs) == set(envs):
-                raw.pop("environments", None)
-            else:
-                raw["environments"] = object_envs
-            repo[key] = raw
-        else:
-            raw = repo[key]
-            if in_env(raw, env):
-                remaining = [e for e in raw.get("environments", envs) if e != env]
+    for key in sorted(set(live) | {k for k in repo if names is None or k in names}):
+        existing = repo.get(key, {})
+        if key not in live:
+            if in_env(existing, env):
+                remaining = [e for e in existing.get("environments", envs) if e != env]
                 if remaining:
-                    raw["environments"] = remaining
+                    existing["environments"] = remaining
                 else:
                     del repo[key]
+            continue
+        object_envs = list(existing.get("environments", envs if existing else []))
+        if env not in object_envs:
+            object_envs.append(env)
+        values = {e: merged(t, defaults, existing, e) for e in object_envs}
+        values[env] = {**{f: v for f, v in values[env].items() if f in TYPES[t].get("repo_only", ())}, **live[key]}
+        keep = {"push": existing["push"]} if "push" in existing else {}
+        push_overrides = {e: {"push": value["push"]}
+                          for e, value in (existing.get("overrides") or {}).items() if "push" in value}
+        if push_overrides:
+            keep["overrides"] = push_overrides
+        repo[key] = compact(t, defaults, values, keep)
+        if set(object_envs) != set(envs):
+            repo[key]["environments"] = object_envs
     store_type(root, t, defaults, repo)
 
 
@@ -875,8 +799,7 @@ def main(argv=None):
         envs = load_environments(root)
         names = select_names(args.names)
         if args.command == "pull":
-            # all pulls in reverse name order, so prod sets the defaults before nonprod.
-            for env in sorted(envs, reverse=True) if args.env == "all" else [args.env]:
+            for env in envs if args.env == "all" else [args.env]:
                 live = None
                 if args.live_dir:
                     live = json.loads(Path(args.live_dir, f"live-{env}", f"{env}.json").read_text(encoding="utf-8"))

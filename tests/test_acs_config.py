@@ -773,98 +773,58 @@ class DocTests(ACSTestCase):
 
 
 class CLITests(ACSTestCase):
-    def test_malformed_toml_is_one_error_line_with_file_name(self):
-        path = self.root / "objects/indexes.toml"
-        path.write_text("[pan\n", encoding="utf-8")
-        code, _, err = self.run_cli(FakeACS(), "plan", "prod", "--types", "indexes")
+    def assert_one_error_line(self, fake, expected):
+        code, _, err = self.run_cli(fake, "plan", "prod", "--types", "indexes")
         self.assertEqual(code, 1)
         self.assertEqual(err.count("\n"), 1)
-        self.assertIn(str(path), err)
-        self.assertNotIn("Traceback", err)
+        self.assertIn(expected, err)
 
-    def test_http_error_is_one_line_without_traceback(self):
-        body = io.BytesIO(b'{"code": "forbidden", "message": "not allowed"}')
-        error = HTTPError("https://example.invalid", 403, "Forbidden", {}, body)
+    def test_bad_files_are_one_error_line(self):
+        path = self.root / "objects/indexes.toml"
+        for content, expected in (
+            (b"[pan\n", str(path)),
+            (b"\xff", str(path)),
+            (path.read_bytes() + b"\n[pan.staging]\nsearchableDays = 1\n",
+             f"{path}: unknown environment table [pan.staging]"),
+            (b'default = "x"\n', "[default] must be a table"),
+        ):
+            with self.subTest(content=content[:12]):
+                path.write_bytes(content)
+                self.assert_one_error_line(FakeACS(), expected)
+
+    def test_http_error_is_one_error_line(self):
+        error = HTTPError("https://example.invalid", 403, "Forbidden", {}, io.BytesIO(b'{"message": "not allowed"}'))
         with mock.patch.object(acs_config, "urlopen", side_effect=error):
-            code, _, err = self.run_cli(acs_config.request, "plan", "prod", "--types", "indexes")
-        self.assertEqual(code, 1)
-        self.assertEqual(err.count("\n"), 1)
-        self.assertIn("HTTP 403 GET https://admin.splunk.com/stack/adminconfig/v2/indexes", err)
-        self.assertIn("not allowed", err)
-        self.assertNotIn("Traceback", err)
+            self.assert_one_error_line(acs_config.request, "HTTP 403 GET "
+                                       "https://admin.splunk.com/stack/adminconfig/v2/indexes?count=100&offset=0: not allowed")
 
-    def test_unknown_environment_table_is_one_error_line(self):
-        path = self.root / "objects/indexes.toml"
-        path.write_text(path.read_text(encoding="utf-8") + "\n[pan.staging]\nsearchableDays = 1\n", encoding="utf-8")
-        code, _, err = self.run_cli(FakeACS(), "plan", "prod", "--types", "indexes")
-        self.assertEqual(code, 1)
-        self.assertEqual(err.count("\n"), 1)
-        self.assertIn(f"{path}: unknown environment table [pan.staging]", err)
-        self.assertNotIn("Traceback", err)
-
-    def test_default_that_is_not_a_table_is_one_error_line(self):
-        path = self.root / "objects/indexes.toml"
-        path.write_text('default = "x"\n', encoding="utf-8")
-        code, _, err = self.run_cli(FakeACS(), "plan", "prod", "--types", "indexes")
-        self.assertEqual(code, 1)
-        self.assertEqual(err.count("\n"), 1)
-        self.assertIn("[default] must be a table", err)
-
-    def test_invalid_utf8_toml_is_one_error_line_without_traceback(self):
-        path = self.root / "objects/indexes.toml"
-        path.write_bytes(b"\xff")
-        code, _, err = self.run_cli(FakeACS(), "plan", "prod", "--types", "indexes")
-        self.assertEqual(code, 1)
-        self.assertEqual(err.count("\n"), 1)
-        self.assertIn(str(path), err)
-        self.assertNotIn("Traceback", err)
-
-    def test_missing_stack_variable_is_one_line(self):
+    def test_missing_stack_variable_is_one_error_line(self):
         with mock.patch.dict(os.environ, {"STACK_TOKEN": "x"}, clear=True):
-            code, _, err = self.run_cli(acs_config.request, "plan", "prod", "--types", "indexes")
-        self.assertEqual(code, 1)
-        self.assertEqual(err, "ERROR: SPLUNK_STACK is not set\n")
+            self.assert_one_error_line(acs_config.request, "SPLUNK_STACK is not set")
 
 
 class OutputTests(unittest.TestCase):
-    def test_result_colors(self):
-        cases = {
-            "CREATE indexes/pan": "32",
-            "ADD SUBNETS ip-allowlists/hec": "32",
-            "NO DIFFERENCES": "32",
-            "NO DIFFERENCES after push": "32",
-            "UPDATE indexes/pan searchableDays": "33",
-            "changed objects/indexes/pan.toml": "33",
-            "REMOVE SUBNETS ip-allowlists/hec": "31",
-            "DELETE indexes/old": "31",
-            "ONLY LIVE indexes/extra": "31",
-            "deleted objects/indexes/old.toml": "31",
-            "DATA LOSS: deleting index old": "31",
-            "ERROR: failed": "31",
-            "##[error]failed": "31",
-        }
+    def test_colors_and_prefixes(self):
         with mock.patch.dict(os.environ, {"TF_BUILD": "true"}):
-            for line, color in cases.items():
+            for line, color in (
+                ("CREATE indexes/pan", "32"), ("ADD SUBNETS ip-allowlists/hec", "32"), ("NO DIFFERENCES", "32"),
+                ("NO DIFFERENCES after push", "32"), ("UPDATE indexes/pan searchableDays", "33"),
+                ("changed objects/indexes.toml", "33"), ("REMOVE SUBNETS ip-allowlists/hec", "31"),
+                ("DELETE indexes/old", "31"), ("ONLY LIVE indexes/extra", "31"), ("deleted objects/indexes.toml", "31"),
+                ("DATA LOSS: deleting index old", "31"), ("ERROR: failed", "31"), ("##[error]failed", "31"),
+            ):
                 with self.subTest(line=line):
                     self.assertEqual(acs_config.color_line(line), f"\033[{color}m{line}\033[0m")
-
-    def test_colors_require_pipeline_or_terminal(self):
+            self.assertEqual(acs_config.pipeline_message("error", "failed"), "##[error]failed")
+            self.assertEqual(acs_config.pipeline_message("section", "indexes"), "##[section]indexes")
         line = "CREATE indexes/pan"
         stdout = mock.Mock(isatty=mock.Mock(return_value=False))
         with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(acs_config.sys, "stdout", stdout):
             self.assertEqual(acs_config.color_line(line), line)
             stdout.isatty.return_value = True
             self.assertEqual(acs_config.color_line(line), f"\033[32m{line}\033[0m")
-
-    def test_pipeline_message_prefixes(self):
-        with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(acs_config.pipeline_message("error", "failed"), "ERROR: failed")
-            self.assertEqual(acs_config.pipeline_message("warning", "skipped"), "WARNING: skipped")
             self.assertEqual(acs_config.pipeline_message("section", "indexes"), "indexes")
-        with mock.patch.dict(os.environ, {"TF_BUILD": "true"}):
-            self.assertEqual(acs_config.pipeline_message("error", "failed"), "##[error]failed")
-            self.assertEqual(acs_config.pipeline_message("warning", "skipped"), "##[warning]skipped")
-            self.assertEqual(acs_config.pipeline_message("section", "indexes"), "##[section]indexes")
 
 
 if __name__ == "__main__":

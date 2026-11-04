@@ -31,9 +31,7 @@ For the file layers, see [File format](/Reference/File-format).
 2. Confirm the `Publish <environment> settings as a pull request` step prints a pull request link, or
    `Pull request for acs-pull/<build id> is already open`.
 3. Confirm a run with no changes prints `NO DIFFERENCES` and opens no pull request.
-4. Expand the groups in the `Show <environment> objects created, changed or deleted by this pull` step. Each group is one
-   changed file, such as `objects/indexes.toml (3 objects)`, with one line per object, such as `changed [pan] 1 fields`.
-5. Confirm no step in the run is a push step.
+4. Confirm no step in the run is a push step.
 
 If the publish step gets HTTP 403, see [Pull request permission](/Troubleshooting/Pull-request-permission).
 

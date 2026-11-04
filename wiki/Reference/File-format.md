@@ -58,21 +58,6 @@ The `unset` list removes the named fields at its layer. An object with `environm
 environments. An environment's `types` list controls which types apply there. The merged result is the value used by
 plan, push, and the generated inventory.
 
-## App permission defaults
-
-The app permission fields use the same layers:
-
-~~~toml
-[default]
-read = ["*"]
-write = ["sc_admin"]
-
-[my_app]
-write = ["team_role"]
-~~~
-
-Here `my_app` inherits `read` and replaces `write`.
-
 ## Pull behavior
 
 Pull never writes or changes `[default]`; a person adds defaults there by hand. For each object field, pull compares
@@ -84,13 +69,8 @@ line. On the next pull, object lines that a new `[default]` makes the same are r
 
 ## Push scope
 
-Push defaults are listed in [Object types](/Reference/Object-types). Set `push` in a default or object layer to override
-the type default; the last layer wins.
-
-~~~toml
-[my_app]
-push = true
-~~~
+Push defaults are listed in [Object types](/Reference/Object-types). Set `push = true` or `push = false` in a default
+or object layer to override the type default; the last layer wins.
 
 ## Reserved names
 

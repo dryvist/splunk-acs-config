@@ -4,16 +4,8 @@ A pull reads the live stack into the repository files and opens one pull request
 
 ## Run the pull
 
-1. Select **Pipelines**.
-2. Open the config pipeline.
-3. Select **Run pipeline**.
-4. Set `action` to `pull`, and select `write`.
-5. Set `environment` to `all`, `nonprod` or `prod`.
-6. Set `types` to `all`, or to type names separated by `;`.
-7. Set `names` to `all`, or to names separated by `;`.
-8. Leave `check` and `delete` as `false`. A pull ignores both.
-9. Select **Run**.
-10. Wait for the run to finish.
+1. Follow [Start a run](/What-to-run#start-a-run) with `action` set to `pull` and `write` selected.
+2. Wait for the run to finish.
 
 ## What a pull writes
 

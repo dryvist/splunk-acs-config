@@ -27,19 +27,15 @@ maxDataSizeMB = 0
 searchableDays = 30
 
 ["my.index"]
-environments = [
-    "nonprod",
-    "prod",
-]
+environments = ["nonprod", "prod"]
 searchableDays = 180
 
 ["my.index".prod]
-unset = [
-    "maxDataSizeMB",
-]
+unset = ["maxDataSizeMB"]
 ~~~
 
 You can also write `nonprod.searchableDays = 30` inside a stanza; both forms load the same, and a pull writes tables.
+A pull writes a list of one or two items on one line, and a longer list with one item per line.
 
 Lines beginning with `#` are comments. A pull rewrites type files, so comments in those files are lost when the file
 changes.

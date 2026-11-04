@@ -11,7 +11,7 @@ import sys
 import time
 from pathlib import Path
 import tomllib
-import tomli_w
+import tomlkit
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
@@ -259,18 +259,19 @@ def stanza(table, skip=()):
     return out
 
 
-def file_order(table):
-    """A table with environments, push and unset first, then the other keys sorted, at every level."""
-    meta = [key for key in ("environments", "push", "unset") if key in table]
-    return {key: file_order(table[key]) if isinstance(table[key], dict) else table[key]
-            for key in [*meta, *sorted(set(table) - set(meta))]}
+def file_value(value):
+    """A table with environments, push and unset first, then the other keys sorted. A list over two items gets one item per line."""
+    if isinstance(value, dict):
+        meta = [key for key in ("environments", "push", "unset") if key in value]
+        return {key: file_value(value[key]) for key in [*meta, *sorted(set(value) - set(meta))]}
+    return tomlkit.item(value).multiline(True) if isinstance(value, list) and len(value) > 2 else value
 
 
 def dump_type(t, defaults, objects):
     data = {"default": stanza(defaults)}
     for key, raw in sorted(objects.items()):
         data[key] = stanza(raw, (TYPES[t]["key"],))
-    return tomli_w.dumps({name: file_order(table) for name, table in data.items()})
+    return tomlkit.dumps({name: file_value(table) for name, table in data.items()})
 
 
 def store_type(root, t, defaults, objects):

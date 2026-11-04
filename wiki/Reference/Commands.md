@@ -5,7 +5,7 @@ This page lists the command syntax, options and environment variables. The pipel
 
 ## Syntax
 
-Run the tool with Python 3.11 or later. Install the one dependency first: `python -m pip install tomli-w==1.2.0`.
+Run the tool with Python 3.11 or later. Install the one dependency first: `python -m pip install tomlkit==0.15.2`.
 Commands use the current directory unless you provide `--dir`.
 
 ~~~text

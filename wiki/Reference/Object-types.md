@@ -29,6 +29,7 @@ A type marked no is not pushed by default. See [File format](/Reference/File-for
   - When the files leave `defaultHost` unset, plan does not compare it, and each HEC create sends it blank.
   - An update sends it blank only when the live value is the stack default, `<stack>.splunkcloud.com` or
     `<host>.<stack>.splunkcloud.com`.
+  - A pull does not store a `defaultHost` that is the stack default.
   - Token values are never written to files or sent to ACS. Push prints the token value of each HEC token it creates
     or updates.
 - Both ip-allowlist types use the feature name and store a subnet list.

@@ -1,11 +1,16 @@
 [default]
 
 [aws_firehose]
-allowedIndexes = ["aws"]
+allowedIndexes = [
+    "aws",
+]
 defaultIndex = "aws"
 defaultSourcetype = "aws:firehose:json"
 useAck = true
 
 [otel_collector]
-allowedIndexes = ["linux", "os_metrics"]
+allowedIndexes = [
+    "linux",
+    "os_metrics",
+]
 defaultIndex = "linux"

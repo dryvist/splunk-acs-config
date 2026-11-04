@@ -26,6 +26,8 @@ steps:
     displayName: Select Python 3.13
     inputs:
       versionSpec: "3.13"
+  - script: python -m pip install --quiet tomli-w==1.2.0
+    displayName: Install tomli-w
   - ${{ if eq(parameters.action, 'pull') }}:
       - script: python "$(Pipeline.Workspace)/tools/pipeline/open_pr.py" branch
         displayName: Check out the pull branch for this run

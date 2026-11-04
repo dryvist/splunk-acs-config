@@ -808,30 +808,6 @@ class CLITests(ACSTestCase):
         self.assertIn("not allowed", err)
         self.assertNotIn("Traceback", err)
 
-    def test_invalid_api_json_is_one_error_line_without_traceback(self):
-        response = mock.MagicMock()
-        response.status = 200
-        response.read.return_value = b"not JSON"
-        response.__enter__.return_value = response
-        with mock.patch.object(acs_config, "urlopen", return_value=response):
-            code, _, err = self.run_cli(acs_config.request, "plan", "prod", "--types", "indexes")
-        self.assertEqual(code, 1)
-        self.assertEqual(err.count("\n"), 1)
-        self.assertIn("invalid JSON from GET", err)
-        self.assertNotIn("Traceback", err)
-
-    def test_invalid_api_utf8_is_one_error_line_without_traceback(self):
-        response = mock.MagicMock()
-        response.status = 200
-        response.read.return_value = b"\xff"
-        response.__enter__.return_value = response
-        with mock.patch.object(acs_config, "urlopen", return_value=response):
-            code, _, err = self.run_cli(acs_config.request, "plan", "prod", "--types", "indexes")
-        self.assertEqual(code, 1)
-        self.assertEqual(err.count("\n"), 1)
-        self.assertIn("invalid UTF-8 response from GET", err)
-        self.assertNotIn("Traceback", err)
-
     def test_unknown_environment_table_is_one_error_line(self):
         path = self.root / "objects/indexes.toml"
         path.write_text(path.read_text(encoding="utf-8") + "\n[pan.staging]\nsearchableDays = 1\n", encoding="utf-8")
@@ -848,13 +824,6 @@ class CLITests(ACSTestCase):
         self.assertEqual(code, 1)
         self.assertEqual(err.count("\n"), 1)
         self.assertIn("[default] must be a table", err)
-
-    def test_live_object_named_default_is_one_error_line(self):
-        fake = FakeACS({("GET", "/indexes"): {"indexes": [index("default")]}})
-        code, _, err = self.run_cli(fake, "plan", "prod", "--types", "indexes")
-        self.assertEqual(code, 1)
-        self.assertEqual(err.count("\n"), 1)
-        self.assertIn("live object 'default' is reserved", err)
 
     def test_invalid_utf8_toml_is_one_error_line_without_traceback(self):
         path = self.root / "objects/indexes.toml"

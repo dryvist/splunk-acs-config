@@ -6,20 +6,16 @@ Deleting an index deletes its data. Some types have no delete operation. See [Ob
 
 ## Steps
 
-1. Select **Pipelines**.
-2. Open the config pipeline.
-3. Select **Run pipeline**.
-4. Set `action` to `push`, select `write`, and set `delete` to `true`.
-5. Set `environment`, `types` and `names` to the objects to check.
-6. Select **Run**.
-7. Wait for the **Plan (read-only)** stage to finish.
-8. Read each `ONLY LIVE` and `REMOVE SUBNETS` line in the plan output.
-9. If any object should stay, do not run any stage. Follow [Pull](/What-to-run/Pull) with the same `types` and
+1. Follow [Start a run](/What-to-run#start-a-run) with `action` set to `push`, `write` selected, and `delete` set to
+   `true`. Set `environment`, `types` and `names` to the objects to check.
+2. Wait for the **Plan (read-only)** stage to finish.
+3. Read each `ONLY LIVE` and `REMOVE SUBNETS` line in the plan output.
+4. If any object should stay, do not run any stage. Follow [Pull](/What-to-run/Pull) with the same `types` and
    `names`, then start again from step 1.
-10. If every line should be removed, select **Delete `<env>` live-only objects (optional, run by hand)**.
-11. Select **Run stage**.
-12. Wait for the stage to finish.
-13. Open the delete step and confirm it ends with `NO DIFFERENCES after push`.
+5. If every line should be removed, select **Delete `<env>` live-only objects (optional, run by hand)**.
+6. Select **Run stage**.
+7. Wait for the stage to finish.
+8. Open the delete step and confirm it ends with `NO DIFFERENCES after push`.
 
 ## Verify
 

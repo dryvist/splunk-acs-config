@@ -1,6 +1,7 @@
 # Commands
 
-This page lists the command syntax, options, pipeline parameters and environment variables.
+This page lists the command syntax, options and environment variables. The pipeline parameters are on
+[What to run](/What-to-run#start-a-run).
 
 ## Syntax
 
@@ -25,17 +26,6 @@ python acs_config.py doc [--dir D]
 - `fetch` writes the live objects to `--out` as JSON and changes no files in the config directory.
 - `pull all` pulls every environment. `--live-dir D` reads `D/live-<env>/<env>.json` from `fetch` instead of calling
   ACS.
-
-## Pipeline parameters
-
-- `environment`: `all`, or one name from `environments.toml`.
-- `action`: `pull` or `push`.
-- `write`: `true` adds the pull request or the Push stages after the plan. It is off by default.
-- `types`: `all`, or type names separated by `;`. See [Object types](/Reference/Object-types).
-- `names`: `all`, or stanza names separated by `;`.
-- `check`: fails the plan when differences exist.
-- `delete`: removes objects that exist only in the stack. Push only. See
-  [Delete live-only objects](/What-to-run/Delete-live-only-objects).
 
 ## Environment variables
 

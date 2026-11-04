@@ -38,13 +38,8 @@ A merge to `main` starts this run for every object. A pull request runs only the
 | App permissions | `app-permissions` | The app folder name |
 | Push a type | One type name, or several separated by `;` | `all` |
 
-Each name is a stanza name in the type's file. Separate several names with `;`. The type names are on
-[Object types](/Reference/Object-types).
+Each name is a stanza name in the type's file.
 
-1. Select **Pipelines**.
-2. Open the config pipeline.
-3. Select **Run pipeline**.
-4. Set `action` to `push`, select `write`, and keep `delete` as `false`.
-5. Set `types` and `names` from the table.
-6. Select **Run**.
-7. Follow steps 4 to 10 of [Push after a merge](#push-after-a-merge).
+1. Follow [Start a run](/What-to-run#start-a-run) with `action` set to `push`, `write` selected, and `types` and `names`
+   from the table.
+2. Follow steps 4 to 10 of [Push after a merge](#push-after-a-merge).

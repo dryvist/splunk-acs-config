@@ -4,18 +4,10 @@ A plan compares the repository files with the live stack, reports the difference
 
 ## Run the plan
 
-1. Select **Pipelines**.
-2. Open the config pipeline.
-3. Select **Run pipeline**.
-4. Keep `write` cleared. `action` does not matter.
-5. Set `environment` to `all`, `nonprod` or `prod`.
-6. Set `types` to `all`, or to type names separated by `;`.
-7. Set `names` to `all`, or to names separated by `;`.
-8. Keep `check` as `false` to report differences only. Set it to `true` to fail the run when differences exist.
-9. Select **Run**.
-10. Wait for the run to finish.
-11. Open the `Plan nonprod (repo vs live)` step.
-12. Open the `Plan prod (repo vs live)` step.
+1. Follow [Start a run](/What-to-run#start-a-run) with `write` cleared.
+2. Wait for the run to finish.
+3. Open the `Plan nonprod (repo vs live)` step.
+4. Open the `Plan prod (repo vs live)` step.
 
 ## Verify the plan
 

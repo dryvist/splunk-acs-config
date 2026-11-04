@@ -4,7 +4,8 @@ This page lists the command syntax, options, pipeline parameters and environment
 
 ## Syntax
 
-Run the tool with Python 3.11 or later. Commands use the current directory unless you provide `--dir`.
+Run the tool with Python 3.11 or later. Install the one dependency first: `python -m pip install tomli-w==1.2.0`.
+Commands use the current directory unless you provide `--dir`.
 
 ~~~text
 python acs_config.py pull <env|all> [--dir D] [--types "t1;t2"] [--names "n1;n2"] [--live-dir D]

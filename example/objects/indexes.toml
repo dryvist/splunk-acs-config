@@ -1,12 +1,14 @@
-[default]
-nonprod.searchableDays = 30
+[default.nonprod]
+searchableDays = 30
 
 [aws]
 
 [linux]
 
 [network]
-environments = ["prod"]
+environments = [
+    "prod",
+]
 
 [os_metrics]
 datatype = "metric"

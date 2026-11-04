@@ -1,6 +1,12 @@
 [default]
 
 [pan_analyst]
-importedRoles = ["user"]
-srchIndexesAllowed = ["pan"]
-srchIndexesDefault = ["pan"]
+importedRoles = [
+    "user",
+]
+srchIndexesAllowed = [
+    "pan",
+]
+srchIndexesDefault = [
+    "pan",
+]

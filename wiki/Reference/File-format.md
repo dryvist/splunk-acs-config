@@ -22,13 +22,24 @@ and is not repeated as a field. Quote names that contain punctuation.
 ~~~toml
 [default]
 maxDataSizeMB = 0
-nonprod.searchableDays = 30
+
+[default.nonprod]
+searchableDays = 30
 
 ["my.index"]
+environments = [
+    "nonprod",
+    "prod",
+]
 searchableDays = 180
-prod.unset = ["maxDataSizeMB"]
-environments = ["nonprod", "prod"]
+
+["my.index".prod]
+unset = [
+    "maxDataSizeMB",
+]
 ~~~
+
+You can also write `nonprod.searchableDays = 30` inside a stanza; both forms load the same, and a pull writes tables.
 
 Lines beginning with `#` are comments. A pull rewrites type files, so comments in those files are lost when the file
 changes.

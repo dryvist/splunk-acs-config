@@ -12,6 +12,7 @@ import time
 from collections import Counter
 from pathlib import Path
 import tomllib
+import tomli_w
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
@@ -185,48 +186,6 @@ def store(root, path, text):
     return True
 
 
-def toml_key(key):
-    return key if re.fullmatch(r"[A-Za-z0-9_-]+", key) else json.dumps(key)
-
-
-def toml_value(value):
-    if isinstance(value, (str, bool)):
-        return json.dumps(value)
-    if isinstance(value, int):
-        return str(value)
-    if isinstance(value, list) and all(type(v) in (str, int) for v in value):
-        return "[" + ", ".join(toml_value(v) for v in value) + "]"
-    raise ACSConfigError(f"unsupported TOML value: {value!r}")
-
-
-def dump_toml(data, dotted=False):
-    lines = []
-
-    def write_table(table, path=()):
-        scalars = [key for key, value in table.items() if not isinstance(value, dict)]
-        children = [key for key, value in table.items() if isinstance(value, dict)]
-        stanza = dotted and len(path) == 1
-        if path and (scalars or not children or path == ("default",) or stanza):
-            lines.extend([""] if lines else [])
-            lines.append(f"[{'.'.join(map(toml_key, path))}]")
-        first = next((key for key in ("name", "feature", "port")
-                      if not path and key in scalars), None)
-        meta = [key for key in ("environments", "push", "unset") if key in scalars]
-        keys = ([first] if first else []) + meta + sorted(key for key in scalars
-                                                          if key != first and key not in meta)
-        lines.extend(f"{toml_key(key)} = {toml_value(table[key])}" for key in keys)
-        if stanza:
-            for env in sorted(children):
-                lines.extend(f"{toml_key(env)}.{toml_key(field)} = {toml_value(value)}"
-                             for field, value in sorted(table[env].items()))
-        else:
-            for key in sorted(children, key=lambda key: (path == () and key != "default", key)):
-                write_table(table[key], (*path, key))
-
-    write_table(data)
-    return "\n".join(lines).rstrip() + "\n"
-
-
 def load_environments(root):
     envs = read_toml(root / "environments.toml")
     if envs is None:
@@ -261,7 +220,7 @@ def split_table(path, envs, name, table):
         elif field in envs:
             overrides[field] = value
         else:
-            table_name = f"{toml_key(name)}.{toml_key(field)}"
+            table_name = f"{name}.{field}"
             raise ACSConfigError(f"{path}: unknown environment table [{table_name}]")
     if overrides:
         fields["overrides"] = overrides
@@ -278,16 +237,16 @@ def load_type(root, t, envs):
     defaults = split_table(path, envs, "default", defaults)
     for name, table in data.items():
         if not isinstance(table, dict):
-            raise ACSConfigError(f"{path}: stanza [{toml_key(name)}] must be a table")
+            raise ACSConfigError(f"{path}: stanza [{name}] must be a table")
         if name in spec.get("skip", ()):
             raise ACSConfigError(f"{path}: {name} is a built-in role and cannot be managed")
         raw = split_table(path, envs, name, table)
         if spec["key"] in raw:
-            raise ACSConfigError(f"{path}: [{toml_key(name)}] cannot contain key field '{spec['key']}'")
+            raise ACSConfigError(f"{path}: [{name}] cannot contain key field '{spec['key']}'")
         try:
             raw[spec["key"]] = int(name) if spec["key"] == "port" else name
         except ValueError:
-            raise ACSConfigError(f"{path}: invalid port stanza [{toml_key(name)}]") from None
+            raise ACSConfigError(f"{path}: invalid port stanza [{name}]") from None
         key = str(raw[spec["key"]])
         if key in objects:
             raise ACSConfigError(f"{path}: duplicate {t} key {key}")
@@ -301,11 +260,18 @@ def stanza(table, skip=()):
     return out
 
 
+def file_order(table):
+    """A table with environments, push and unset first, then the other keys sorted, at every level."""
+    meta = [key for key in ("environments", "push", "unset") if key in table]
+    return {key: file_order(table[key]) if isinstance(table[key], dict) else table[key]
+            for key in [*meta, *sorted(set(table) - set(meta))]}
+
+
 def dump_type(t, defaults, objects):
     data = {"default": stanza(defaults)}
     for key, raw in sorted(objects.items()):
         data[key] = stanza(raw, (TYPES[t]["key"],))
-    return dump_toml(data, dotted=True)
+    return tomli_w.dumps({name: file_order(table) for name, table in data.items()})
 
 
 def store_type(root, t, defaults, objects):

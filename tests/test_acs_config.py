@@ -106,29 +106,35 @@ class TomlTests(unittest.TestCase):
     def test_names_split_only_on_semicolons(self):
         self.assertEqual(acs_config.select_names("my token; pan"), {"my token", "pan"})
 
-    def test_writer_rejects_unsupported_values_as_config_errors(self):
-        with self.assertRaisesRegex(acs_config.ACSConfigError, "unsupported TOML value"):
-            acs_config.dump_toml({"unsupported": 1.5})
-
-    def test_writer_round_trips_objects_and_empty_environments(self):
-        obj = {"name": "sample", "enabled": True, "names": ["one", "two"],
-               "numbers": [1, 2], "overrides": {"nonprod": {"searchableDays": 30}}}
-        dumped = acs_config.dump_toml(obj)
-        self.assertTrue(dumped.startswith('name = "sample"\nenabled = true\nnames ='))
-        self.assertIn("\n\n[overrides.nonprod]\n", dumped)
-        self.assertNotIn("[overrides]\n", dumped)
-        self.assertEqual(tomllib.loads(dumped), obj)
-
-        envs = {"nonprod": {}, "prod": {"types": ["roles", "app-permissions"]}}
-        dumped = acs_config.dump_toml(envs)
-        self.assertIn("[nonprod]", dumped)
-        self.assertEqual(tomllib.loads(dumped), envs)
-
-    def test_type_writer_uses_dotted_environment_keys(self):
-        dumped = acs_config.dump_toml({"sample": {"itsi.prod": {"foo.bar": 1}}}, dotted=True)
-        self.assertIn('"itsi.prod"."foo.bar" = 1', dumped)
-        self.assertNotIn('[sample."itsi.prod"]', dumped)
-        self.assertEqual(tomllib.loads(dumped), {"sample": {"itsi.prod": {"foo.bar": 1}}})
+    def test_type_writer_output(self):
+        dumped = acs_config.dump_type(
+            "indexes",
+            {"searchableDays": 90, "overrides": {"nonprod": {"searchableDays": 30}}},
+            {"my index": {"name": "my index", "maxDataSizeMB": 1, "environments": ["prod"],
+                          "overrides": {"prod": {"unset": ["searchableDays"]}}}})
+        self.assertEqual(dumped, (
+            "[default]\n"
+            "searchableDays = 90\n"
+            "\n"
+            "[default.nonprod]\n"
+            "searchableDays = 30\n"
+            "\n"
+            '["my index"]\n'
+            "environments = [\n"
+            '    "prod",\n'
+            "]\n"
+            "maxDataSizeMB = 1\n"
+            "\n"
+            '["my index".prod]\n'
+            "unset = [\n"
+            '    "searchableDays",\n'
+            "]\n"
+        ))
+        self.assertEqual(tomllib.loads(dumped), {
+            "default": {"searchableDays": 90, "nonprod": {"searchableDays": 30}},
+            "my index": {"environments": ["prod"], "maxDataSizeMB": 1,
+                         "prod": {"unset": ["searchableDays"]}},
+        })
 
 
 class EffectiveTests(ACSTestCase):
@@ -699,8 +705,8 @@ class InferenceTests(ACSTestCase):
         self.assertEqual(code, 0)
         text = (self.root / "objects/indexes.toml").read_text(encoding="utf-8")
         self.assertIn("[shared]\nsearchableDays = 180", text)
-        self.assertNotIn("prod.searchableDays", text)
-        self.assertNotIn("nonprod.searchableDays", text)
+        self.assertNotIn("[shared.prod]", text)
+        self.assertNotIn("[shared.nonprod]", text)
         for env, live in (("prod", prod), ("nonprod", nonprod)):
             _, out, _ = self.run_cli(FakeACS({("GET", "/indexes"): live}),
                                      "plan", env, "--types", "indexes", "--names", "shared")
@@ -712,8 +718,7 @@ class InferenceTests(ACSTestCase):
             code, _, _ = self.run_cli(fake, "pull", env, "--types", "indexes", "--names", "pan")
             self.assertEqual(code, 0)
         text = (self.root / "objects/indexes.toml").read_text(encoding="utf-8")
-        self.assertIn("[pan]\nsearchableDays = 30\nnonprod.searchableDays = 60\n", text)
-        self.assertNotIn("[pan.nonprod]", text)
+        self.assertIn("[pan]\nsearchableDays = 30\n\n[pan.nonprod]\nsearchableDays = 60\n", text)
         for env, days in (("nonprod", 60), ("prod", 30)):
             _, out, _ = self.run_cli(
                 FakeACS({("GET", "/indexes"): {"indexes": [index("pan", searchableDays=days)]}}),
@@ -749,7 +754,7 @@ class InferenceTests(ACSTestCase):
                                      "plan", env, "--types", "indexes", "--names", "shared")
             self.assertEqual(out.splitlines()[-1], "NO DIFFERENCES")
 
-    def test_old_environment_subtables_still_load_and_plan(self):
+    def test_environment_subtables_load_and_plan(self):
         (self.root / "objects/indexes.toml").write_text(
             "[default]\nsearchableDays = 30\n\n[shared]\nsearchableDays = 180\n"
             "\n[shared.nonprod]\nsearchableDays = 60\n", encoding="utf-8")

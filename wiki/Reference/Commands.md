@@ -23,8 +23,8 @@ python acs_config.py doc [--dir D]
 - `--check` fails a plan when differences exist.
 - `--delete` lets a push delete objects that exist only in the stack.
 - `fetch` writes the live objects to `--out` as JSON and changes no files in the config directory.
-- `pull all` pulls every environment in reverse name order. `--live-dir D` reads `D/live-<env>/<env>.json` from
-  `fetch` instead of calling ACS.
+- `pull all` pulls every environment. `--live-dir D` reads `D/live-<env>/<env>.json` from `fetch` instead of calling
+  ACS.
 
 ## Pipeline parameters
 

@@ -18,12 +18,9 @@ A pull reads the live stack into the repository files and opens one pull request
 ## What a pull writes
 
 - One `Read <env> live` job per environment reads ACS. The read jobs run in parallel.
-- One `Pull <environment> into one pull request` job then writes the reads in reverse name order, so `prod` comes
-  before `nonprod`. It commits to one branch, `acs-pull/<build id>`, with one pull request.
-- The first environment pulled sets the `[default]` stanza of each type, when it is empty, and each object's base values.
-- Later environments add `[default.<env>]` and object overrides only where they differ.
-
-For the file layers, see [File format](/Reference/File-format).
+- One `Pull <environment> into one pull request` job writes the reads to one branch, `acs-pull/<build id>`, and opens
+  one pull request.
+- See [File format](/Reference/File-format) for what a pull writes to type files.
 
 ## Verify the run
 

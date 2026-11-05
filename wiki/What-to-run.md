@@ -32,6 +32,9 @@ These tasks do not start from the run form:
 10. Set `delete` if your task needs it.
 11. Select **Run**.
 
+The run name shows the options it started with, such as `20261105.3 push prod, types indexes, names 2`. A run
+without `write` shows `plan`.
+
 | Parameter | Values | Default | Effect |
 | --- | --- | --- | --- |
 | `action` | `pull`, `push` | `push` | With `write` selected, `pull` reads live into a pull request and `push` writes files to the stack. |

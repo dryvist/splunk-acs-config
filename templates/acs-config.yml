@@ -1,7 +1,7 @@
-# Pull requests, scheduled runs and runs without write only plan every environment.
+# Pull requests, scheduled runs, and pull runs without write only plan every environment.
 # A pull run reads every environment in parallel, then one job writes them in order to acs-pull/<build id>
 # and opens one pull request.
-# After the plan, a push run and a run on merge to main add a Push stage per environment
+# A push run and a run on merge to main also add a Push stage per environment
 # (creates and updates) and, when delete is true, a Delete stage. These stages run only when someone selects
 # Run stage. They do not wait for the plan or for each other; read the plan first.
 parameters:
@@ -21,7 +21,7 @@ parameters:
     values:
       - pull
       - push
-  # true adds the pull request (pull) or the Push stages (push) after the plan.
+  # true opens the pull request after a pull. A push ignores it.
   - name: write
     type: boolean
     default: false
@@ -86,7 +86,7 @@ stages:
                   action: pull
                   types: ${{ parameters.types }}
                   names: ${{ parameters.names }}
-  - ${{ if or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), and(eq(parameters.action, 'push'), parameters.write, notIn(variables['Build.Reason'], 'PullRequest', 'Schedule'))) }}:
+  - ${{ if or(in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI'), and(eq(parameters.action, 'push'), notIn(variables['Build.Reason'], 'PullRequest', 'Schedule'))) }}:
       - ${{ each env in parameters.environments }}:
           - ${{ if in(parameters.environment, 'all', env) }}:
               - stage: push_${{ replace(env, '-', '_') }}

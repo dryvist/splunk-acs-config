@@ -6,7 +6,7 @@ Deleting an index deletes its data. Some types have no delete operation. See [Ob
 
 ## Steps
 
-1. Follow [Start a run](/What-to-run#start-a-run) with `action` set to `push`, `write` selected, and `delete` set to
+1. Follow [Start a run](/What-to-run#start-a-run) with `action` set to `push`, and `delete` set to
    `true`. Set `environment`, `types` and `names` to the objects to check.
 2. Wait for the **Plan (read-only)** stage to finish.
 3. Read each `ONLY LIVE` and `REMOVE SUBNETS` line in the plan output.

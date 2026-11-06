@@ -3,7 +3,7 @@
 # and opens one pull request.
 # After the plan, a push run and a run on merge to main add a Push stage per environment
 # (creates and updates) and, when delete is true, a Delete stage. These stages run only when someone selects
-# Run stage.
+# Run stage. They do not wait for the plan or for each other; read the plan first.
 parameters:
   - name: pool
     type: object
@@ -92,6 +92,7 @@ stages:
               - stage: push_${{ replace(env, '-', '_') }}
                 displayName: Push ${{ env }} (optional, run by hand)
                 trigger: manual
+                dependsOn: []
                 jobs:
                   - deployment: push
                     displayName: Push ${{ env }} creates and updates
@@ -113,6 +114,7 @@ stages:
                   - stage: delete_${{ replace(env, '-', '_') }}
                     displayName: Delete ${{ env }} live-only objects (optional, run by hand; deleting an index deletes its data)
                     trigger: manual
+                    dependsOn: []
                     jobs:
                       - deployment: delete
                         displayName: Delete ${{ env }} live-only objects

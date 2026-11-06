@@ -471,10 +471,27 @@ def type_changes(root, env, t, names=None):
     live = live_objects(t, names)
     keys = managed | ({k for k in live if k not in repo and not all_default(t, live[k])}
                       if type_pushed else set())
-    return [c for key in sorted(keys)
-            for c in key_changes(t, key, {k: v for k, v in merged(t, defaults, repo[key], env).items()
-                                          if k not in skip} if key in managed else None,
-                                 live.get(key))]
+
+    def wanted(key):
+        if key not in managed:
+            return None
+        eff = {k: v for k, v in merged(t, defaults, repo[key], env).items() if k not in skip}
+        if t == "splunkbase-apps" and eff.get("version") == "latest":
+            eff["version"] = latest_version(key, eff.get("id"))
+        return eff
+
+    return [c for key in sorted(keys) for c in key_changes(t, key, wanted(key), live.get(key))]
+
+
+def latest_version(name, app_id):
+    """The newest cloud-compatible release from Splunkbase's public release list, which lists newest first."""
+    if not app_id:
+        raise ACSConfigError(f"splunkbase-apps/{name}: version = \"latest\" needs the Splunkbase id")
+    releases, _ = request("GET", f"https://splunkbase.splunk.com/api/v1/app/{app_id}/release/")
+    for release in releases:
+        if release.get("cloud_compatible"):
+            return release["name"]
+    raise ACSConfigError(f"splunkbase-apps/{name}: Splunkbase lists no cloud-compatible release")
 
 
 def collect(root, env, types, names=None):
@@ -666,7 +683,11 @@ def pull_type(root, envs, env, t, names, live=None):
         if env not in object_envs:
             object_envs.append(env)
         values = {e: merged(t, defaults, existing, e) for e in object_envs}
+        latest = values[env].get("version") == "latest"
         values[env] = {**{f: v for f, v in values[env].items() if f in TYPES[t].get("repo_only", ())}, **live[key]}
+        # A pull keeps version = "latest".
+        if latest:
+            values[env]["version"] = "latest"
         keep = {"push": existing["push"]} if "push" in existing else {}
         push_overrides = {e: {"push": value["push"]}
                           for e, value in (existing.get("overrides") or {}).items() if "push" in value}

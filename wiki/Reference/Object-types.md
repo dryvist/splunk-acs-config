@@ -46,6 +46,9 @@ A type marked no is not pushed by default. See [File format](/Reference/File-for
 Pull records the app name, id, and version. Plans compare only version. If ACS reports a missing license, copy the URL
 from the error into `license`. This type has no delete operation.
 
+Change `version` to upgrade or downgrade an app. Set `version = "latest"` to keep an app on its newest cloud-compatible
+release: plan and push read Splunkbase's public release list and use that exact version, and a pull keeps `"latest"`.
+
 ## Search head targets
 
 ACS app permissions apply to the targeted search head. Add one environment per search head for app permissions; each

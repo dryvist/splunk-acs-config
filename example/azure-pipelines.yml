@@ -1,7 +1,7 @@
 # PR validation runs through a main-branch Build validation policy. A merge to main plans every environment
 # and adds a Push stage per environment that runs only when selected.
 # The run name shows the options this run started with.
-name: "$(Date:yyyyMMdd).$(Rev:r) ${{ iif(parameters.write, parameters.action, 'plan') }} ${{ parameters.environment }}, types ${{ iif(contains(parameters.types, ';'), length(split(parameters.types, ';')), parameters.types) }}, names ${{ iif(eq(lower(trim(parameters.names)), 'all'), 'all', length(split(parameters.names, ';'))) }}${{ iif(parameters.check, ', check', '') }}${{ iif(parameters.delete, ', DELETE', '') }}"
+name: "$(Date:yyyyMMdd).$(Rev:r) ${{ iif(or(eq(parameters.action, 'push'), parameters.write), parameters.action, 'plan') }} ${{ parameters.environment }}, types ${{ iif(contains(parameters.types, ';'), length(split(parameters.types, ';')), parameters.types) }}, names ${{ iif(eq(lower(trim(parameters.names)), 'all'), 'all', length(split(parameters.names, ';'))) }}${{ iif(parameters.check, ', check', '') }}${{ iif(parameters.delete, ', DELETE', '') }}"
 
 trigger:
   branches:
@@ -33,7 +33,7 @@ parameters:
       - pull
       - push
   - name: write
-    displayName: Write - after the plan, open the pull request (pull) or add the Push stages (push)
+    displayName: Write - after the plan, open the pull request (pull only)
     type: boolean
     default: false
   - name: types

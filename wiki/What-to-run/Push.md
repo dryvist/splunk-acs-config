@@ -40,6 +40,6 @@ A merge to `main` starts this run for every object. A pull request runs only the
 
 Each name is a stanza name in the type's file.
 
-1. Follow [Start a run](/What-to-run#start-a-run) with `action` set to `push`, `write` selected, and `types` and `names`
+1. Follow [Start a run](/What-to-run#start-a-run) with `action` set to `push`, and `types` and `names`
    from the table.
 2. Follow steps 4 to 10 of [Push after a merge](#push-after-a-merge).

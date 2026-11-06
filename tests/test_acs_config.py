@@ -398,16 +398,26 @@ class PullTests(ACSTestCase):
     def test_built_in_roles_are_skipped_and_imported_roles_mapped(self):
         fake = FakeACS({("GET", "/roles"): {"roles": [
             {"name": "admin", "capabilities": ["admin_all_objects"]},
+            {"name": "itoa_admin", "capabilities": ["admin_all_objects"]},
             {"name": "pan_analyst", "imported": {"roles": ["user"]}, "srchIndexesAllowed": ["pan"],
              "srchDiskQuota": 100, "srchJobsQuota": 3, "rtSrchJobsQuota": 6},
         ]}})
-        self.run_cli(fake, "pull", "prod", "--types", "roles", "--names", "admin;pan_analyst")
+        self.run_cli(fake, "pull", "prod", "--types", "roles", "--names", "admin;itoa_admin;pan_analyst")
         self.assertNotIn("admin", self.read("objects/roles.toml"))
+        self.assertNotIn("itoa_admin", self.read("objects/roles.toml"))
         self.assertEqual(self.read("objects/roles.toml")["pan_analyst"], {
             "environments": ["prod"], "importedRoles": ["user"], "srchIndexesAllowed": ["pan"]})
 
 
 class PlanTests(ACSTestCase):
+    def test_built_in_role_in_the_file_is_skipped_with_a_warning(self):
+        (self.root / "objects/roles.toml").write_text('[is4s_admin]\ncapabilities = ["search"]\n')
+        fake = FakeACS({("GET", "/roles"): {"roles": []}})
+        code, out, err = self.run_cli(fake, "plan", "prod", "--types", "roles")
+        self.assertEqual(code, 0, err)
+        self.assertIn("skipped roles/is4s_admin: built-in role", out + err)
+        self.assertNotIn("CREATE", out)
+
     def test_limits_plan_shows_changed_setting_when_enabled(self):
         (self.root / "objects/limits.toml").write_text('[search]\npush = true\nmax_count = "20"\n')
         fake = FakeACS({("GET", "/limits"): [

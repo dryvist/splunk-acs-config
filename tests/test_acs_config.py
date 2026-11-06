@@ -448,6 +448,19 @@ class PlanTests(ACSTestCase):
         self.assertNotIn("repo-id", out)
         self.assertNotIn("license", out)
 
+    def test_splunkbase_latest_uses_newest_cloud_compatible_release(self):
+        (self.root / "objects/splunkbase-apps.toml").write_text('[my_app]\nid = "1234"\nversion = "latest"\n')
+        fake = FakeACS({("GET", "/apps/victoria"): {"apps": [
+                            {"name": "my_app", "splunkbaseID": "1234", "version": "1.0"}]},
+                        ("GET", "https://splunkbase.splunk.com/api/v1/app/1234/release/"): [
+                            {"name": "3.0", "cloud_compatible": False},
+                            {"name": "2.0", "cloud_compatible": True}]})
+        code, out, err = self.run_cli(fake, "plan", "prod", "--types", "splunkbase-apps")
+        self.assertEqual(code, 0, err)
+        self.assertIn('UPDATE splunkbase-apps/my_app version: "1.0" -> "2.0"', out)
+        self.run_cli(fake, "pull", "prod", "--types", "splunkbase-apps")
+        self.assertEqual(self.read("objects/splunkbase-apps.toml")["my_app"]["version"], "latest")
+
     def test_types_without_push_are_not_read(self):
         code, out, _ = self.run_cli(FakeACS(), "plan", "prod", "--types", "roles")
         self.assertEqual(code, 0)

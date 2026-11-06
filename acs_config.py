@@ -2,6 +2,7 @@
 """Pull, plan, push and document Splunk Cloud ACS settings stored as TOML files."""
 
 import argparse
+import fnmatch
 import csv
 import io
 import json
@@ -23,8 +24,9 @@ POLL_INTERVAL = 10
 POLL_ATTEMPTS = 90  # 15 minutes at one poll per POLL_INTERVAL
 META = ("environments", "overrides", "unset", "push")
 FEATURES = ("s2s", "hec", "search-ui", "search-api", "idm-api", "idm-ui", "acs")
-# Built-in roles the tool never reads or writes.
-BUILTIN_ROLES = ("admin", "can_delete", "power", "sc_admin", "splunk-system-role", "user")
+# Built-in and premium app roles the tool never reads or writes. * matches any characters.
+BUILTIN_ROLES = ("admin", "apps", "can_delete", "list_users_roles", "power", "sc_admin", "splunk-system-role",
+                 "tokens_auth", "user", "ess_*", "is4s_*", "itoa_*")
 
 def ip_type(feature_list):
     return {"key": "feature", "fields": ("feature", "subnets"), "subnet": True, "keys": FEATURES,
@@ -211,6 +213,10 @@ def select_names(raw):
     return None if raw.strip() in ("", "all") else {name.strip() for name in raw.split(";") if name.strip()}
 
 
+def skipped(spec, name):
+    return any(fnmatch.fnmatchcase(name, pattern) for pattern in spec.get("skip", ()))
+
+
 def split_table(path, envs, name, table):
     fields, overrides = {}, {}
     for field, value in table.items():
@@ -237,8 +243,9 @@ def load_type(root, t, envs):
     for name, table in data.items():
         if not isinstance(table, dict):
             raise ACSConfigError(f"{path}: stanza [{name}] must be a table")
-        if name in spec.get("skip", ()):
-            raise ACSConfigError(f"{path}: {name} is a built-in role and cannot be managed")
+        if skipped(spec, name):
+            warning(f"skipped {t}/{name}: built-in role, remove it from {path.name}")
+            continue
         raw = split_table(path, envs, name, table)
         if spec["key"] in raw:
             raise ACSConfigError(f"{path}: [{name}] cannot contain key field '{spec['key']}'")
@@ -408,7 +415,7 @@ def live_objects(t, names=None):
     live = {}
     for record in records:
         key = str(record[key_field])
-        if key in spec.get("skip", ()) or (names is not None and key not in names):
+        if skipped(spec, key) or (names is not None and key not in names):
             continue
         if spec.get("subnet") and not record.get("subnets"):
             continue

@@ -8,8 +8,9 @@ A plan does not show a change for a built-in role, or a built-in role is not in 
 
 ## Cause
 
-ACS does not allow built-in roles to be edited, so the tool skips them. It reports no change and no ONLY LIVE line for
-them. The skipped names are listed on [Object types](/Reference/Object-types).
+The tool skips built-in roles and premium app roles, so they cannot be changed by mistake. It reports no change and no
+ONLY LIVE line for them. A skipped role found in `objects/roles.toml` prints a `skipped` warning; delete that stanza.
+The skipped names are listed on [Object types](/Reference/Object-types).
 
 ## Verify
 

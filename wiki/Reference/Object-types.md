@@ -60,5 +60,6 @@ deploy it with the app.
 
 - User records and ACS credentials are not object data.
 - App permissions do not create or delete apps.
-- The tool skips the built-in roles admin, can_delete, power, sc_admin, splunk-system-role, and user. See
+- The tool skips the built-in roles admin, apps, can_delete, list_users_roles, power, sc_admin, splunk-system-role,
+  tokens_auth and user, and every role that starts with ess_ (ES), is4s_ or itoa_ (ITSI). See
   [Built-in roles](/Troubleshooting/Built-in-roles).

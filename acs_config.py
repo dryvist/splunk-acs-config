@@ -22,7 +22,7 @@ PAGE_SIZE = 100
 POLL_INTERVAL = 10
 POLL_ATTEMPTS = 90  # 15 minutes at one poll per POLL_INTERVAL
 META = ("environments", "overrides", "unset", "push")
-FEATURES = ("s2s", "hec", "search-ui", "search-api", "idm-api", "idm-ui", "acs", "federated-search")
+FEATURES = ("s2s", "hec", "search-ui", "search-api", "idm-api", "idm-ui", "acs")
 # Built-in roles the tool never reads or writes.
 BUILTIN_ROLES = ("admin", "can_delete", "power", "sc_admin", "splunk-system-role", "user")
 

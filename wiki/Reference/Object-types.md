@@ -43,8 +43,9 @@ A type marked no is not pushed by default. See [File format](/Reference/File-for
 
 ## Splunkbase apps
 
-Pull records the app name, id, and version. Plans compare only version. If ACS reports a missing license, copy the URL
-from the error into `license`. This type has no delete operation.
+Pull records the app name, id, and version. Plans compare only version. ACS installs or updates a Splunkbase app only when the push
+sends the app's license URL. Set `license` to that URL, or to `"splunkbase"` to send the license URL Splunkbase lists
+for the app. `license = "splunkbase"` in `[default]` covers every app; it means you accept each app's license. This type has no delete operation.
 
 Change `version` to upgrade or downgrade an app. Set `version = "latest"` to keep an app on its newest cloud-compatible
 release: plan and push read Splunkbase's public release list and use that exact version, and a pull keeps `"latest"`.

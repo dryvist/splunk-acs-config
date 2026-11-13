@@ -79,9 +79,10 @@ TYPES = {
                    "defaultApp", "importedRoles", "rtSrchJobsQuota", "srchDiskQuota", "srchFilter",
                    "srchIndexesAllowed", "srchIndexesDefault", "srchJobsQuota", "srchTimeEarliest",
                    "srchTimeWin"),
-        # authorize.conf [default], Splunk 10.6. The cumulative quotas are not in the ACS
-        # OpenAPI RolesInfo schema, so no default is set for them.
-        "splunk_defaults": {"srchDiskQuota": 100, "srchJobsQuota": 3, "rtSrchJobsQuota": 6},
+        # authorize.conf [default], Splunk 10.6.
+        "splunk_defaults": {"srchDiskQuota": 100, "srchJobsQuota": 3, "rtSrchJobsQuota": 6,
+                            "cumulativeSrchJobsQuota": 50, "cumulativeRTSrchJobsQuota": 100,
+                            "srchTimeWin": -1},
         "list": "/roles", "items": ("roles",), "paged": True, "skip": BUILTIN_ROLES,
         "post": "/roles", "patch": "/roles/{key}", "delete": "/roles/{key}",
     },

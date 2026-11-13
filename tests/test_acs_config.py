@@ -477,6 +477,19 @@ class PlanTests(ACSTestCase):
         self.run_cli(fake, "pull", "prod", "--types", "splunkbase-apps")
         self.assertEqual(self.read("objects/splunkbase-apps.toml")["my_app"]["version"], "latest")
 
+    def test_splunkbase_license_is_read_from_splunkbase(self):
+        sent = {}
+
+        def fake(method, path, body=None, form=False, extra_headers=None):
+            sent[path] = extra_headers
+            return json.dumps({"license_url": "https://license.example"}), 200
+
+        change = {"type": "splunkbase-apps", "key": "my_app", "op": "CREATE",
+                  "eff": {"id": "1234", "version": "1.0", "license": "splunkbase"}}
+        with mock.patch.object(acs_config, "request", fake):
+            acs_config.apply_change(change, "session")
+        self.assertEqual(sent["/apps/victoria?splunkbase=true"]["ACS-Licensing-Ack"], "https://license.example")
+
     def test_types_without_push_are_not_read(self):
         code, out, _ = self.run_cli(FakeACS(), "plan", "prod", "--types", "roles")
         self.assertEqual(code, 0)

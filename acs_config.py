@@ -587,8 +587,13 @@ def apply_change(c, session=None):
                 {field: repo for field, (_, repo) in c["fields"].items()})
         path = spec["post"] if op == "CREATE" else path_for(spec["patch"], key)
         headers = {"X-Splunkbase-Authorization": session}
-        if c["eff"].get("license"):
-            headers["ACS-Licensing-Ack"] = c["eff"]["license"]
+        ack = c["eff"].get("license")
+        if ack == "splunkbase":
+            # license = "splunkbase": use the license URL the app's Splunkbase page lists.
+            text, _ = request("GET", f"https://splunkbase.splunk.com/api/v1/app/{c['eff']['id']}/")
+            ack = json.loads(text).get("license_url")
+        if ack:
+            headers["ACS-Licensing-Ack"] = ack
         return request("POST" if op == "CREATE" else "PATCH", path, body, form=True,
                        extra_headers=headers)[1]
     blank = c.get("blank", {})

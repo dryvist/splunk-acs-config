@@ -563,10 +563,11 @@ def add_body(t, key, c):
 
 
 def splunkbase_session():
-    credentials = {"username": env_value("SPLUNKBASE_USERNAME"),
-                  "password": env_value("SPLUNKBASE_PASSWORD")}
+    # The splunk.com account: SPLUNKBASE_* when set, otherwise SPLUNK_*.
+    credentials = {"username": env_value("SPLUNKBASE_USERNAME") or env_value("SPLUNK_USERNAME"),
+                   "password": env_value("SPLUNKBASE_PASSWORD") or env_value("SPLUNK_PASSWORD")}
     if not all(credentials.values()):
-        raise ACSConfigError("SPLUNKBASE_USERNAME and SPLUNKBASE_PASSWORD are required")
+        raise ACSConfigError("SPLUNK_USERNAME and SPLUNK_PASSWORD are required to push a Splunkbase app")
     data, _ = request("POST", "https://splunkbase.splunk.com/api/account:login", credentials, form=True)
     session = re.search(r"<id>([^<]+)</id>", data)
     if not session:

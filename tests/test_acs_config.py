@@ -4,6 +4,7 @@ import contextlib
 import copy
 import csv
 import io
+import json
 import os
 import shutil
 import tempfile
@@ -452,9 +453,9 @@ class PlanTests(ACSTestCase):
         (self.root / "objects/splunkbase-apps.toml").write_text('[my_app]\nid = "1234"\nversion = "latest"\n')
         fake = FakeACS({("GET", "/apps/victoria"): {"apps": [
                             {"name": "my_app", "splunkbaseID": "1234", "version": "1.0"}]},
-                        ("GET", "https://splunkbase.splunk.com/api/v1/app/1234/release/"): [
+                        ("GET", "https://splunkbase.splunk.com/api/v1/app/1234/release/"): json.dumps([
                             {"name": "3.0", "cloud_compatible": False},
-                            {"name": "2.0", "cloud_compatible": True}]})
+                            {"name": "2.0", "cloud_compatible": True}])})
         code, out, err = self.run_cli(fake, "plan", "prod", "--types", "splunkbase-apps")
         self.assertEqual(code, 0, err)
         self.assertIn('UPDATE splunkbase-apps/my_app version: "1.0" -> "2.0"', out)

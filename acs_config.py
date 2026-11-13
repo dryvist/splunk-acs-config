@@ -487,8 +487,8 @@ def latest_version(name, app_id):
     """The newest cloud-compatible release from Splunkbase's public release list, which lists newest first."""
     if not app_id:
         raise ACSConfigError(f"splunkbase-apps/{name}: version = \"latest\" needs the Splunkbase id")
-    releases, _ = request("GET", f"https://splunkbase.splunk.com/api/v1/app/{app_id}/release/")
-    for release in releases:
+    text, _ = request("GET", f"https://splunkbase.splunk.com/api/v1/app/{app_id}/release/")
+    for release in json.loads(text):
         if release.get("cloud_compatible"):
             return release["name"]
     raise ACSConfigError(f"splunkbase-apps/{name}: Splunkbase lists no cloud-compatible release")

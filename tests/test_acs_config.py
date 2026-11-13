@@ -214,8 +214,8 @@ class PullTests(ACSTestCase):
         self.assertEqual(
             self.run_cli(fake, "pull", "prod", "--types", "hec-tokens", "--live-dir", str(out.parents[1]))[0], 0)
         tokens = self.read("objects/hec-tokens.toml")
-        self.assertNotIn("defaultHost", tokens["from_stack"])
-        self.assertEqual(tokens["by_hand"]["defaultHost"], "host.example")
+        self.assertNotIn("defaultHost", tokens["from_stack"]["prod"])
+        self.assertEqual(tokens["by_hand"]["prod"]["defaultHost"], "host.example")
         _, plan, _ = self.run_cli(fake, "plan", "prod", "--types", "hec-tokens")
         self.assertEqual(plan.splitlines()[-1], "NO DIFFERENCES")
 
@@ -224,7 +224,7 @@ class PullTests(ACSTestCase):
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes", "--names", "newidx")
         self.assertEqual(code, 0)
         self.assertEqual(self.read("objects/indexes.toml")["newidx"],
-                         {"searchableDays": 30, "environments": ["prod"]})
+                         {"prod": {"searchableDays": 30}})
 
     def test_new_all_default_index_is_not_pulled_or_planned(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("_internal"), index("itsi_summary")]}})
@@ -296,7 +296,7 @@ class PullTests(ACSTestCase):
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "indexes")
         self.assertEqual(code, 0)
         after_defaults, after = acs_config.load_type(self.root, "indexes", envs)
-        self.assertEqual(after["newidx"], {"environments": ["prod"], "name": "newidx", "searchableDays": 30})
+        self.assertEqual(after["newidx"], {"name": "newidx", "overrides": {"prod": {"searchableDays": 30}}})
         self.assertEqual(after_defaults, before_defaults)
         self.assertEqual(set(after) - {"newidx"}, set(before))
         for name, raw in before.items():
@@ -304,10 +304,24 @@ class PullTests(ACSTestCase):
                 self.assertEqual(acs_config.merged("indexes", before_defaults, raw, env),
                                  acs_config.merged("indexes", after_defaults, after[name], env))
 
+    def test_object_environments_come_from_its_tables(self):
+        cases = (({"name": "x"}, ["nonprod", "prod"]),
+                 ({"name": "x", "searchableDays": 1, "overrides": {"prod": {}}}, ["nonprod", "prod"]),
+                 ({"name": "x", "overrides": {"prod": {}}}, ["prod"]),
+                 ({"name": "x", "environments": ["nonprod"], "searchableDays": 1}, ["nonprod"]))
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                self.assertEqual([e for e in ("nonprod", "prod") if acs_config.in_env("indexes", raw, e)], expected)
+        both = acs_config.env_tables("indexes", {"overrides": {"prod": {"a": 1}}}, ["nonprod", "prod"], ["nonprod", "prod"])
+        self.assertEqual(both, {"overrides": {"nonprod": {}, "prod": {"a": 1}}})
+        moved = acs_config.env_tables("indexes", {"a": 1, "unset": ["b", "c"], "overrides": {"prod": {"b": 2}}},
+                                      ["prod"], ["nonprod", "prod"])
+        self.assertEqual(moved, {"overrides": {"prod": {"a": 1, "b": 2, "unset": ["c"]}}})
+
     def test_missing_live_drops_env_and_expands_absent_list(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": []}})
         self.run_cli(fake, "pull", "prod", "--types", "indexes")
-        self.assertEqual(self.read("objects/indexes.toml")["legacy"]["environments"], ["nonprod"])
+        self.assertEqual(self.read("objects/indexes.toml")["legacy"], {"nonprod": {}})
         self.assertNotIn("retired", self.read("objects/indexes.toml"))
 
     def test_hec_token_is_never_written(self):
@@ -318,7 +332,7 @@ class PullTests(ACSTestCase):
         code, out, err = self.run_cli(fake, "pull", "prod", "--types", "hec-tokens", "--names", "newhec")
         self.assertEqual(code, 0)
         self.assertEqual(self.read("objects/hec-tokens.toml")["newhec"],
-                         {"environments": ["prod"], "defaultIndex": "shared"})
+                         {"prod": {"defaultIndex": "shared"}})
         self.assertNotIn("SECRET-VALUE", out + err)
         for path in self.root.rglob("*.toml"):
             self.assertNotIn("SECRET-VALUE", path.read_text(encoding="utf-8"))
@@ -344,7 +358,7 @@ class PullTests(ACSTestCase):
         code, _, _ = self.run_cli(fake, "pull", "prod", "--types", "app-permissions", "--names", "my_app")
         self.assertEqual(code, 0)
         self.assertEqual(self.read("objects/app-permissions.toml")["my_app"],
-                         {"environments": ["prod"], "read": ["*"], "write": ["sc_admin"]})
+                         {"prod": {"read": ["*"], "write": ["sc_admin"]}})
 
     def test_app_permissions_pull_keeps_owner(self):
         (self.root / "objects/app-permissions.toml").write_text(
@@ -393,7 +407,7 @@ class PullTests(ACSTestCase):
         code, _, err = self.run_cli(fake, "pull", "prod", "--types", "limits", "--names", "search")
         self.assertEqual(code, 0, err)
         self.assertEqual(self.read("objects/limits.toml")["search"], {
-            "environments": ["prod"], "max_result_rows": "20"})
+            "prod": {"max_result_rows": "20"}})
 
     def test_built_in_roles_are_skipped_and_imported_roles_mapped(self):
         fake = FakeACS({("GET", "/roles"): {"roles": [
@@ -406,7 +420,7 @@ class PullTests(ACSTestCase):
         self.assertNotIn("admin", self.read("objects/roles.toml"))
         self.assertNotIn("itoa_admin", self.read("objects/roles.toml"))
         self.assertEqual(self.read("objects/roles.toml")["pan_analyst"], {
-            "environments": ["prod"], "importedRoles": ["user"], "srchIndexesAllowed": ["pan"]})
+            "prod": {"importedRoles": ["user"], "srchIndexesAllowed": ["pan"]}})
 
 
 class PlanTests(ACSTestCase):

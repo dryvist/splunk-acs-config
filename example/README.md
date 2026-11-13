@@ -49,6 +49,9 @@ Each file in `objects/` holds one object type. `[default]` holds shared values; 
 - srchDiskQuota: 100 (Splunk default)
 - srchJobsQuota: 3 (Splunk default)
 - rtSrchJobsQuota: 6 (Splunk default)
+- cumulativeSrchJobsQuota: 50 (Splunk default)
+- cumulativeRTSrchJobsQuota: 100 (Splunk default)
+- srchTimeWin: -1 (Splunk default)
 
 ## limits
 

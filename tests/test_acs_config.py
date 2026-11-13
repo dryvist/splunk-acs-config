@@ -415,7 +415,8 @@ class PullTests(ACSTestCase):
             {"name": "admin", "capabilities": ["admin_all_objects"]},
             {"name": "itoa_admin", "capabilities": ["admin_all_objects"]},
             {"name": "pan_analyst", "imported": {"roles": ["user"]}, "srchIndexesAllowed": ["pan"],
-             "srchDiskQuota": 100, "srchJobsQuota": 3, "rtSrchJobsQuota": 6},
+             "srchDiskQuota": 100, "srchJobsQuota": 3, "rtSrchJobsQuota": 6,
+             "cumulativeSrchJobsQuota": 50, "cumulativeRTSrchJobsQuota": 100, "srchTimeWin": -1},
         ]}})
         self.run_cli(fake, "pull", "prod", "--types", "roles", "--names", "admin;itoa_admin;pan_analyst")
         self.assertNotIn("admin", self.read("objects/roles.toml"))

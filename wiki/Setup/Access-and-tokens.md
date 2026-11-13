@@ -30,9 +30,13 @@ The pipeline reads the variable group `splunk-<env>` for each environment in the
 15. Confirm the user has the `sc_admin` role.
 16. From an allowed address, send `POST <ACS base URL>/access/acs/ipallowlists` with the body `{"subnets": ["<agent-subnet>"]}`.
 17. Set the request header `Authorization: Bearer <acs-token>`.
-18. Add `SPLUNKBASE_USERNAME` as a secret variable in groups that push apps.
-19. Add `SPLUNKBASE_PASSWORD` as a secret variable in those groups.
+18. Confirm the variable group `splunk-appinspect` has `SPLUNK_USERNAME`, a splunk.com account.
+19. Confirm `splunk-appinspect` has `SPLUNK_PASSWORD` as a secret variable.
 20. Select **Save** for each updated group.
+
+The Push job reads `splunk-appinspect` to install and update Splunkbase apps. The first push run asks you to
+permit the group. To use a different account for one environment, add `SPLUNKBASE_USERNAME` and
+`SPLUNKBASE_PASSWORD` to its `splunk-<env>` group.
 
 ## Rules
 

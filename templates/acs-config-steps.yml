@@ -41,6 +41,8 @@ steps:
       SPLUNK_SEARCH_HEAD: $(SPLUNK_SEARCH_HEAD)
       SPLUNKBASE_USERNAME: $(SPLUNKBASE_USERNAME)
       SPLUNKBASE_PASSWORD: $(SPLUNKBASE_PASSWORD)
+      SPLUNK_USERNAME: $(SPLUNK_USERNAME)
+      SPLUNK_PASSWORD: $(SPLUNK_PASSWORD)
       STACK_TOKEN: $(ACS_TOKEN)
   - ${{ if eq(parameters.action, 'fetch') }}:
       - publish: $(Pipeline.Workspace)/live

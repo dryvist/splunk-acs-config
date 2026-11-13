@@ -32,7 +32,8 @@ python acs_config.py doc [--dir D]
 - The tool reads the token from `STACK_TOKEN`. The pipeline sets `STACK_TOKEN` from the `ACS_TOKEN` variable.
 - `SPLUNK_STACK` names the stack.
 - `SPLUNK_SEARCH_HEAD` is optional and is ignored when empty or unresolved.
-- `SPLUNKBASE_USERNAME` and `SPLUNKBASE_PASSWORD` are used only when a Splunkbase app change is pushed.
+- `SPLUNK_USERNAME` and `SPLUNK_PASSWORD` are used only when a Splunkbase app change is pushed.
+  `SPLUNKBASE_USERNAME` and `SPLUNKBASE_PASSWORD` replace them when set.
 
 The authorization token is sent in the ACS Bearer header. The variables are set in the variable groups described on
 [Access and tokens](/Setup/Access-and-tokens).

@@ -5,8 +5,7 @@ searchableDays = 30
 
 [linux]
 
-[network]
-environments = ["prod"]
+[network.prod]
 
 [os_metrics]
 datatype = "metric"

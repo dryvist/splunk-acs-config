@@ -27,11 +27,13 @@ maxDataSizeMB = 0
 searchableDays = 30
 
 ["my.index"]
-environments = ["nonprod", "prod"]
 searchableDays = 180
 
 ["my.index".prod]
 unset = ["maxDataSizeMB"]
+
+[prod_only.prod]
+searchableDays = 365
 ~~~
 
 You can also write `nonprod.searchableDays = 30` inside a stanza; both forms load the same, and a pull writes tables.
@@ -50,9 +52,19 @@ For an environment, each layer replaces fields set by earlier layers:
 4. The object stanza.
 5. `[<object>.<env>]`.
 
-The `unset` list removes the named fields at its layer. An object with `environments` applies only to the listed
-environments. An environment's `types` list controls which types apply there. The merged result is the value used by
+The `unset` list removes the named fields at its layer. An environment's `types` list controls which types apply there. The merged result is the value used by
 plan, push, and the generated inventory.
+
+## Which environments an object is in
+
+| Stanza | Environments |
+| --- | --- |
+| `[name]` with values, with or without `[name.<env>]` tables | Every environment |
+| `[name]` with no values and no tables | Every environment |
+| Only `[name.<env>]` tables | The environments that have a table |
+
+A table can be empty: `[name.prod]` alone means the object is in prod only, with default values. An older file can
+still use `environments = ["prod"]`; the next pull replaces it with tables.
 
 ## Pull behavior
 

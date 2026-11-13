@@ -288,8 +288,28 @@ def store_type(root, t, defaults, objects):
     return False
 
 
-def in_env(raw, env):
-    return "environments" not in raw or env in raw["environments"]
+def in_env(t, raw, env):
+    """An object with its own values is in every environment; one with only [<object>.<env>] tables is in those."""
+    if "environments" in raw:  # files written before pull used tables
+        return env in raw["environments"]
+    tables = raw.get("overrides") or {}
+    return bool(set(raw) - {TYPES[t]["key"], "overrides"}) or not tables or env in tables
+
+
+def env_tables(t, raw, object_envs, envs):
+    """Rewrite an object so it is in object_envs only: no environments key, and a table per environment when needed."""
+    base = {f: v for f, v in raw.items() if f not in (TYPES[t]["key"], "overrides", "environments")}
+    tables = raw.get("overrides") or {}
+    if set(object_envs) != set(envs):
+        moved = {}
+        for env in object_envs:
+            table = tables.get(env) or {}
+            unset = [f for f in base.get("unset", ()) if f not in table] + list(table.get("unset", ()))
+            moved[env] = {**base, **table, **({"unset": unset} if unset else {})}
+        base, tables = {}, moved
+    elif tables and not base:
+        tables = {env: tables.get(env) or {} for env in envs}
+    return {**base, **({"overrides": tables} if tables else {})}
 
 
 def layers(t, defaults, raw, env):
@@ -463,7 +483,7 @@ def type_changes(root, env, t, names=None):
     # archival = false in environments.toml: the stack has no Splunk Data Archival.
     skip = ("splunkArchivalRetentionDays",) if envs.get(env, {}).get("archival") is False else ()
     repo = {key: raw for key, raw in all_repo.items()
-            if (names is None or key in names) and in_env(raw, env)}
+            if (names is None or key in names) and in_env(t, raw, env)}
     managed = {key for key, raw in repo.items() if pushed(t, defaults, raw, env)}
     type_pushed = pushed(t, defaults, {}, env)
     if not managed and not type_pushed:
@@ -672,14 +692,14 @@ def pull_type(root, envs, env, t, names, live=None):
     for key in sorted(set(live) | {k for k in repo if names is None or k in names}):
         existing = repo.get(key, {})
         if key not in live:
-            if in_env(existing, env):
-                remaining = [e for e in existing.get("environments", envs) if e != env]
+            if in_env(t, existing, env):
+                remaining = [e for e in envs if e != env and in_env(t, existing, e)]
                 if remaining:
-                    existing["environments"] = remaining
+                    repo[key] = env_tables(t, existing, remaining, envs)
                 else:
                     del repo[key]
             continue
-        object_envs = list(existing.get("environments", envs if existing else []))
+        object_envs = [e for e in envs if existing and in_env(t, existing, e)]
         if env not in object_envs:
             object_envs.append(env)
         values = {e: merged(t, defaults, existing, e) for e in object_envs}
@@ -693,9 +713,7 @@ def pull_type(root, envs, env, t, names, live=None):
                           for e, value in (existing.get("overrides") or {}).items() if "push" in value}
         if push_overrides:
             keep["overrides"] = push_overrides
-        repo[key] = compact(t, defaults, values, keep)
-        if set(object_envs) != set(envs):
-            repo[key]["environments"] = object_envs
+        repo[key] = env_tables(t, compact(t, defaults, values, keep), object_envs, envs)
     store_type(root, t, defaults, repo)
 
 
@@ -750,7 +768,7 @@ def write_doc(root):
     for t in TYPES:
         defaults, objects = load_type(root, t, envs)
         loaded[t] = (defaults, objects)
-        counts = [str(sum(in_env(raw, env) for raw in objects.values()))
+        counts = [str(sum(in_env(t, raw, env) for raw in objects.values()))
                   if t in env_types(envs, env) else "-" for env in envs]
         pushed_by_default = "yes" if pushed(t, defaults, {}, "") else "no"
         lines.append(f"| {t} | `objects/{t}.toml` | {pushed_by_default} | " + " | ".join(counts) + " |")
@@ -769,12 +787,12 @@ def write_doc(root):
                 continue
             type_defaults, objects = loaded[t]
             for name, raw in objects.items():
-                if in_env(raw, env) and name not in versions:
+                if in_env(t, raw, env) and name not in versions:
                     version = merged(t, type_defaults, raw, env).get("version")
                     if version is not None:
                         versions[name] = version
         for name, raw in sorted(permissions.items()):
-            if not in_env(raw, env):
+            if not in_env("app-permissions", raw, env):
                 continue
             app = merged("app-permissions", defaults, raw, env)
             cells = (env, app["name"], versions.get(name), app.get("read"),

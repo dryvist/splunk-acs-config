@@ -480,6 +480,9 @@ class PlanTests(ACSTestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("SKIPPED splunkbase-apps/my_app: Splunkbase lists app 1234 as archived", out)
         self.assertNotIn("UPDATE", out)
+        fake.routes[("GET", "https://splunkbase.splunk.com/api/v1/app/1234/")] = '{"appid": "other_app"}'
+        _, out, _ = self.run_cli(fake, "plan", "prod", "--types", "splunkbase-apps")
+        self.assertIn("Splunkbase names app 1234 other_app. Rename the stanza to [other_app]", out)
         self.run_cli(fake, "pull", "prod", "--types", "splunkbase-apps")
         self.assertEqual(self.read("objects/splunkbase-apps.toml")["my_app"]["version"], "latest")
 

@@ -509,18 +509,25 @@ def type_changes(root, env, t, names=None):
             eff["version"] = latest_version(key, eff.get("id"))
         return eff
 
-    return [c for key in sorted(keys) for c in key_changes(t, key, wanted(key), live.get(key)) if not archived(c)]
+    return [c for key in sorted(keys) for c in key_changes(t, key, wanted(key), live.get(key)) if not skip_app(c)]
 
 
-def archived(c):
-    """True for an install or update of an app Splunkbase lists as archived. Prints one warning."""
+def skip_app(c):
+    """True for an install or update Splunkbase shows cannot match the files. Prints one warning."""
     app_id = c.get("eff", {}).get("id")
     if c["type"] != "splunkbase-apps" or not app_id:
         return False
     text, _ = request("GET", f"https://splunkbase.splunk.com/api/v1/app/{app_id}/")
-    if not json.loads(text).get("is_archived"):
+    app = json.loads(text)
+    name = app.get("appid") or c["key"]
+    if app.get("is_archived"):
+        reason = f"Splunkbase lists app {app_id} as archived"
+    elif name != c["key"]:
+        # shortcut: trusts the Splunkbase appid as the name on the stack, drop this branch if an app installs under another name
+        reason = f"Splunkbase names app {app_id} {name}. Rename the stanza to [{name}]"
+    else:
         return False
-    warning(f"SKIPPED splunkbase-apps/{c['key']}: Splunkbase lists app {app_id} as archived")
+    warning(f"SKIPPED splunkbase-apps/{c['key']}: {reason}")
     return True
 
 

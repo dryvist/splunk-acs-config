@@ -457,7 +457,7 @@ class PlanTests(ACSTestCase):
             '[my_app]\nid = "repo-id"\nversion = "1.1"\nlicense = "my-license"\n')
         fake = FakeACS({("GET", "/apps/victoria"): {"apps": [
             {"name": "my_app", "splunkbaseID": "live-id", "version": "1.0"},
-        ]}})
+        ]}, ("GET", "https://splunkbase.splunk.com/api/v1/app/repo-id/"): "{}"})
         code, out, err = self.run_cli(fake, "plan", "prod", "--types", "splunkbase-apps")
         self.assertEqual(code, 0, err)
         self.assertIn('UPDATE splunkbase-apps/my_app version: "1.0" -> "1.1"', out)
@@ -470,10 +470,16 @@ class PlanTests(ACSTestCase):
                             {"name": "my_app", "splunkbaseID": "1234", "version": "1.0"}]},
                         ("GET", "https://splunkbase.splunk.com/api/v1/app/1234/release/"): json.dumps([
                             {"name": "3.0", "cloud_compatible": False},
-                            {"name": "2.0", "cloud_compatible": True}])})
+                            {"name": "2.0", "cloud_compatible": True}]),
+                        ("GET", "https://splunkbase.splunk.com/api/v1/app/1234/"): "{}"})
         code, out, err = self.run_cli(fake, "plan", "prod", "--types", "splunkbase-apps")
         self.assertEqual(code, 0, err)
         self.assertIn('UPDATE splunkbase-apps/my_app version: "1.0" -> "2.0"', out)
+        fake.routes[("GET", "https://splunkbase.splunk.com/api/v1/app/1234/")] = '{"is_archived": true}'
+        code, out, err = self.run_cli(fake, "plan", "prod", "--types", "splunkbase-apps", "--check")
+        self.assertEqual(code, 0, err)
+        self.assertIn("SKIPPED splunkbase-apps/my_app: Splunkbase lists app 1234 as archived", out)
+        self.assertNotIn("UPDATE", out)
         self.run_cli(fake, "pull", "prod", "--types", "splunkbase-apps")
         self.assertEqual(self.read("objects/splunkbase-apps.toml")["my_app"]["version"], "latest")
 
@@ -565,6 +571,8 @@ class PushTests(ACSTestCase):
 
         def open_url(req, timeout):
             requests.append(req)
+            if "/api/v1/app/" in req.full_url:
+                return response(b"{}")
             if "splunkbase.splunk.com" in req.full_url:
                 return response(b"<session><id>session-id</id></session>")
             if req.get_method() == "GET":
@@ -585,7 +593,7 @@ class PushTests(ACSTestCase):
             code = acs_config.main([
                 "push", "prod", "--types", "splunkbase-apps", "--dir", str(self.root)])
         self.assertEqual(code, 0, err.getvalue())
-        login = [req for req in requests if "splunkbase.splunk.com" in req.full_url]
+        login = [req for req in requests if "splunkbase.splunk.com/api/account" in req.full_url]
         self.assertEqual(len(login), 1)
         self.assertEqual(login[0].data, b"username=user&password=password")
         installs = [req for req in requests

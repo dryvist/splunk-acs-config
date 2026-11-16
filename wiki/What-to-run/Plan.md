@@ -15,6 +15,12 @@ A plan compares the repository files with the live stack, reports the difference
 2. Confirm each plan step prints `NO DIFFERENCES`.
 3. Confirm the run has no push step.
 
+## Sorting on a pull request
+
+A pull request run also has a `Sort the settings files` job. It writes each file in `objects/` in the order on
+[File format](/Reference/File-format) and pushes one `Sort settings files` commit to the pull request branch. That
+commit starts one more run. Comments in the files are not kept.
+
 A plan that prints `ONLY LIVE` needs a decision. See [Only live objects](/Troubleshooting/Only-live-objects).
 
 ## Nightly drift check

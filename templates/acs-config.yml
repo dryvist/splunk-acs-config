@@ -1,4 +1,5 @@
 # Pull requests, scheduled runs, and pull runs without write only plan every environment.
+# A pull request run also sorts the settings files and pushes the result to the pull request branch.
 # A pull run reads every environment in parallel, then one job writes them in order to acs-pull/<build id>
 # and opens one pull request.
 # A push run and a run on merge to main also add a Push stage per environment
@@ -71,6 +72,15 @@ stages:
                           action: fetch
                           types: ${{ parameters.types }}
                           names: ${{ parameters.names }}
+      - ${{ if eq(variables['Build.Reason'], 'PullRequest') }}:
+          - job: sort
+            displayName: Sort the settings files
+            pool: ${{ parameters.pool }}
+            steps:
+              - template: acs-config-steps.yml
+                parameters:
+                  env: all
+                  action: sort
       - ${{ if and(eq(parameters.action, 'pull'), parameters.write, notIn(variables['Build.Reason'], 'PullRequest', 'Schedule')) }}:
           - job: pull
             displayName: Pull ${{ parameters.environment }} into one pull request

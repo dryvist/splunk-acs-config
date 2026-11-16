@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import os
+import re
 import shutil
 import tempfile
 import tomllib
@@ -178,6 +179,17 @@ class EffectiveTests(ACSTestCase):
 
 
 class PullTests(ACSTestCase):
+    def test_sort_orders_stanzas_and_keeps_the_values(self):
+        path = self.root / "objects/indexes.toml"
+        path.write_text('[zeta]\nsearchableDays = 30\n\n[zeta.prod]\nsearchableDays = 60\n\n'
+                        '[alpha]\nsearchableDays = 10\ndatatype = "event"\n\n[default]\nmaxDataSizeMB = 0\n')
+        before = self.read("objects/indexes.toml")
+        code, _, err = self.run_cli(None, "sort", "all")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.read("objects/indexes.toml"), before)
+        self.assertEqual(re.findall(r"^\[(.+)\]$", path.read_text(), re.M), ["default", "alpha", "zeta", "zeta.prod"])
+        self.assertLess(path.read_text().index("datatype"), path.read_text().index("searchableDays = 10"))
+
     def test_pull_colors_changed_type_file_in_pipeline(self):
         fake = FakeACS({("GET", "/indexes"): {"indexes": [index("new"), index("pan", searchableDays=200)]}})
         with mock.patch.dict(os.environ, {"TF_BUILD": "True"}):

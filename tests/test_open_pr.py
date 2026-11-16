@@ -19,6 +19,7 @@ ENV = {
     "SYSTEM_COLLECTIONURI": "https://example.invalid/",
     "SYSTEM_TEAMPROJECT": "project",
     "SYSTEM_TEAMPROJECTID": "project-id",
+    "SYSTEM_PULLREQUEST_SOURCEBRANCH": "refs/heads/my-change",
 }
 
 
@@ -53,6 +54,14 @@ class OpenPrTests(unittest.TestCase):
         calls, _, _ = run(open_pr.branch, remote="abc\trefs/heads/acs-pull/123\n")
         self.assertIn(["fetch", "origin", "acs-pull/123"], calls)
         self.assertEqual(calls[-1], ["checkout", "-B", "acs-pull/123", "FETCH_HEAD"])
+
+    def test_sorted_files_are_pushed_to_the_pull_request_branch(self):
+        calls, _, _ = run(open_pr.source)
+        self.assertEqual(calls, [["fetch", "origin", "refs/heads/my-change"], ["checkout", "--detach", "FETCH_HEAD"]])
+        calls, _, _ = run(open_pr.push_sorted, status=" M objects/indexes.toml\n")
+        self.assertEqual(calls[-1], ["push", "origin", "HEAD:refs/heads/my-change"])
+        calls, _, _ = run(open_pr.push_sorted)
+        self.assertEqual(calls, [["status", "--porcelain"]])
 
     def test_publish_commits_pushes_and_opens_pull_request(self):
         calls, urlopen, out = run(open_pr.publish, "prod", status=" M objects/indexes/pan.json\n")

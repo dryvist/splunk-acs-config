@@ -2,6 +2,8 @@
 
 open_pr.py branch          check out acs-pull/<build id>, continuing it when an earlier job pushed it
 open_pr.py publish <env>   commit the pulled <env> settings, push the branch, and open the pull request once
+open_pr.py source          check out the source branch of this run's pull request
+open_pr.py sorted          commit the sorted settings files and push them to that source branch
 """
 
 import json
@@ -41,6 +43,20 @@ def branch():
     else:
         git("checkout", "-B", name)
         print(f"Starting {name}")
+
+
+def source():
+    git("fetch", "origin", os.environ["SYSTEM_PULLREQUEST_SOURCEBRANCH"])
+    git("checkout", "--detach", "FETCH_HEAD")
+
+
+def push_sorted():
+    if not git("status", "--porcelain").strip():
+        print("Settings files are sorted")
+        return
+    git("commit", "--all", "-m", "Sort settings files")
+    git("push", "origin", f"HEAD:{os.environ['SYSTEM_PULLREQUEST_SOURCEBRANCH']}")
+    print("Pushed the sorted settings files to the pull request branch")
 
 
 def publish(env):
@@ -84,10 +100,11 @@ def fail(message):
 
 if __name__ == "__main__":
     try:
-        if sys.argv[1:2] == ["branch"]:
-            branch()
-        else:
+        command = sys.argv[1]
+        if command == "publish":
             publish(sys.argv[2])
+        else:
+            {"branch": branch, "source": source, "sorted": push_sorted}[command]()
     except subprocess.CalledProcessError as error:
         fail(f"{' '.join(error.cmd)} exited with code {error.returncode}: {error.stderr.strip()}")
     except urllib.error.HTTPError as error:

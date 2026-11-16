@@ -889,6 +889,9 @@ def build_parser():
     add_common(push)
     doc = commands.add_parser("doc")
     doc.add_argument("--dir", default=".")
+    sort = commands.add_parser("sort")
+    sort.add_argument("env")
+    add_common(sort)
     return parser
 
 
@@ -900,6 +903,10 @@ def main(argv=None):
             write_doc(root)
             return 0
         envs = load_environments(root)
+        if args.command == "sort":
+            for t in TYPES:
+                store_type(root, t, *load_type(root, t, envs))
+            return 0
         names = select_names(args.names)
         if args.command == "pull":
             for env in envs if args.env == "all" else [args.env]:

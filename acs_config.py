@@ -509,7 +509,19 @@ def type_changes(root, env, t, names=None):
             eff["version"] = latest_version(key, eff.get("id"))
         return eff
 
-    return [c for key in sorted(keys) for c in key_changes(t, key, wanted(key), live.get(key))]
+    return [c for key in sorted(keys) for c in key_changes(t, key, wanted(key), live.get(key)) if not archived(c)]
+
+
+def archived(c):
+    """True for an install or update of an app Splunkbase lists as archived. Prints one warning."""
+    app_id = c.get("eff", {}).get("id")
+    if c["type"] != "splunkbase-apps" or not app_id:
+        return False
+    text, _ = request("GET", f"https://splunkbase.splunk.com/api/v1/app/{app_id}/")
+    if not json.loads(text).get("is_archived"):
+        return False
+    warning(f"SKIPPED splunkbase-apps/{c['key']}: Splunkbase lists app {app_id} as archived")
+    return True
 
 
 def latest_version(name, app_id):

@@ -46,7 +46,9 @@ A type marked no is not pushed by default. See [File format](/Reference/File-for
 Pull records the app name, id, and version. Plans compare only version. ACS installs or updates a Splunkbase app only when the push
 sends the app's license URL. Set `license` to that URL, or to `"splunkbase"` to send the license URL Splunkbase lists
 for the app. `license = "splunkbase"` in `[default]` covers every app; it means you accept each app's license. This type has no delete operation.
-Plan and push skip an install or update of an app Splunkbase lists as archived, and print `SKIPPED` with the app name.
+The stanza name is the app's name on the stack, which is the `appid` Splunkbase lists for the id.
+Plan and push skip an install or update when Splunkbase lists the app as archived or under another name, and print
+`SKIPPED` with the reason.
 
 Change `version` to upgrade or downgrade an app. Set `version = "latest"` to keep an app on its newest cloud-compatible
 release: plan and push read Splunkbase's public release list and use that exact version, and a pull keeps `"latest"`.

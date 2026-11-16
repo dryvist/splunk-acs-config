@@ -648,6 +648,32 @@ class PushTests(ACSTestCase):
         sleep.assert_called_once_with(10)
         self.assertEqual([c[0] for c in fake.writes()], ["PATCH"])
 
+    def push_with_failing_post(self, exc, *gets):
+        fake = FakeACS({("GET", "/indexes"): Seq(*gets)})
+
+        def request(method, path, body=None):
+            result = fake(method, path, body)
+            if method == "POST":
+                raise exc
+            return result
+        with mock.patch.object(acs_config.time, "sleep") as sleep:
+            code, _, err = self.run_cli(request, "push", "prod", "--types", "indexes", "--names", "shared;pan")
+        return fake, sleep, code, err
+
+    def test_write_timeout_is_polled_until_the_object_matches(self):
+        before = {"indexes": [index("shared", searchableDays=180)]}
+        after = {"indexes": [index("shared", searchableDays=180), index("pan")]}
+        _, sleep, code, _ = self.push_with_failing_post(acs_config.ACSTimeout("timed out"), before, before, after)
+        self.assertEqual(code, 0)
+        sleep.assert_called_once_with(10)
+
+    def test_failed_change_does_not_stop_the_next_change(self):
+        live = {"indexes": [index("shared", searchableDays=170)]}
+        fake, _, code, err = self.push_with_failing_post(acs_config.ACSConfigError("HTTP 500"), live)
+        self.assertEqual(code, 1)
+        self.assertEqual([c[0] for c in fake.writes()], ["POST", "PATCH"])
+        self.assertIn("indexes/pan: HTTP 500", err)
+
     def test_extra_object_is_kept_without_delete_and_fails_the_check(self):
         live = {"indexes": [index("shared", searchableDays=180), index("pan"), index("extra", searchableDays=30)]}
         fake = FakeACS({("GET", "/indexes"): live})

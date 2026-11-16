@@ -4,8 +4,11 @@ This page fixes changes that stay pending after ACS accepts a write.
 
 ## Symptom
 
-Push reports `timed out waiting for <type>/<key> to match the files`. ACS returned HTTP 202 for the change, and the
-object still differs from the files after 15 minutes of polling.
+Push reports `timed out waiting for <type>/<key> to match the files`. ACS returned HTTP 202 for the change, or did
+not answer the write in 60 seconds, and the object still differs from the files after 15 minutes of checks. The wait
+between checks doubles from 10 seconds up to 60 seconds.
+
+Push prints one error for each change that fails, goes on to the next change, and fails at the end.
 
 ## Action
 

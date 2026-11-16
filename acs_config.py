@@ -21,7 +21,8 @@ from pipeline.output import color_line, pipeline_message
 
 PAGE_SIZE = 100
 POLL_INTERVAL = 10
-POLL_ATTEMPTS = 90  # 15 minutes at one poll per POLL_INTERVAL
+POLL_MAX = 60  # the wait between checks doubles from POLL_INTERVAL up to this
+POLL_LIMIT = 900  # seconds to wait for one change
 META = ("environments", "overrides", "unset", "push")
 FEATURES = ("s2s", "hec", "search-ui", "search-api", "idm-api", "idm-ui", "acs")
 # Built-in and premium app roles the tool never reads or writes. * matches any characters.
@@ -124,6 +125,10 @@ class ACSConfigError(Exception):
     pass
 
 
+class ACSTimeout(ACSConfigError):
+    """ACS did not answer in time. A write may still be running."""
+
+
 def env_value(name):
     value = os.environ.get(name, "")
     return "" if re.fullmatch(r"\$\([^)]*\)", value) else value
@@ -162,8 +167,11 @@ def request(method, path, body=None, form=False, extra_headers=None):
             pass
         err.close()
         raise ACSConfigError(f"HTTP {err.code} {method} {url}: {message}") from None
+    except TimeoutError:
+        raise (ACSConfigError if external else ACSTimeout)(f"{method} {url}: timed out") from None
     except URLError as err:
-        raise ACSConfigError(f"{method} {url}: {err.reason}") from None
+        timeout = isinstance(err.reason, TimeoutError) and not external
+        raise (ACSTimeout if timeout else ACSConfigError)(f"{method} {url}: {err.reason}") from None
     data = text if external else (json.loads(text) if text.strip() else None)
     return data, status
 
@@ -613,16 +621,22 @@ def apply_change(c, session=None):
 
 
 def wait_converged(root, env, c, allow_delete):
-    for attempt in range(1, POLL_ATTEMPTS + 1):
-        pending = [p for p in type_changes(root, env, c["type"], {c["key"]}) if applicable(p, allow_delete)]
-        if not pending:
-            print(f"{c['type']}/{c['key']} matches the files", flush=True)
-            return
-        print(f"Waiting for ACS to finish {c['type']}/{c['key']} (check {attempt} of {POLL_ATTEMPTS}, "
-              f"every {POLL_INTERVAL} seconds)", flush=True)
-        time.sleep(POLL_INTERVAL)
-    still = "; ".join(line for p in pending for line in describe(p))
-    raise ACSConfigError(f"timed out waiting for {c['type']}/{c['key']} to match the files. Still different: {still}")
+    name, waited, delay = f"{c['type']}/{c['key']}", 0, POLL_INTERVAL
+    while True:
+        try:
+            pending = [p for p in type_changes(root, env, c["type"], {c["key"]}) if applicable(p, allow_delete)]
+            if not pending:
+                print(f"{name} matches the files", flush=True)
+                return
+            still = "; ".join(line for p in pending for line in describe(p))
+        except ACSConfigError as err:  # a busy stack can fail a check
+            still = str(err)
+        if waited >= POLL_LIMIT:
+            raise ACSConfigError(f"timed out waiting for {name} to match the files. Still different: {still}")
+        print(f"Waiting for ACS to finish {name} ({waited} of {POLL_LIMIT} seconds waited, "
+              f"next check in {delay} seconds)", flush=True)
+        time.sleep(delay)
+        waited, delay = waited + delay, min(delay * 2, POLL_MAX)
 
 
 def plan_command(root, env, types, names):
@@ -637,10 +651,19 @@ def push_command(root, env, types, names, allow_delete):
     session = splunkbase_session() if any(c["type"] == "splunkbase-apps" and applicable(c, allow_delete)
                                           for c in changes) else None
     for c in changes:
-        if applicable(c, allow_delete):
-            print(f"{c['op']} {c['type']}/{c['key']}", flush=True)
-        if applicable(c, allow_delete) and apply_change(c, session) == 202:
-            wait_converged(root, env, c, allow_delete)
+        if not applicable(c, allow_delete):
+            continue
+        print(f"{c['op']} {c['type']}/{c['key']}", flush=True)
+        try:
+            try:
+                accepted = apply_change(c, session) == 202
+            except ACSTimeout as err:
+                warning(f"{err}. Checking whether ACS finished the change.")
+                accepted = True
+            if accepted:
+                wait_converged(root, env, c, allow_delete)
+        except (ACSConfigError, OSError, ValueError, KeyError) as err:
+            error(f"{c['type']}/{c['key']}: {err}")
     left = collect(root, env, types, names)
     if left:
         raise ACSConfigError(f"{len(left)} differences remain after push")

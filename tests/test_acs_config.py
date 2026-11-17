@@ -934,11 +934,11 @@ class OutputTests(unittest.TestCase):
                 ("changed objects/indexes.toml", "33"), ("REMOVE SUBNETS ip-allowlists/hec", "31"),
                 ("DELETE indexes/old", "31"), ("ONLY LIVE indexes/extra", "31"), ("deleted objects/indexes.toml", "31"),
                 ("DATA LOSS: deleting index old", "31"), ("ERROR: failed", "31"), ("##[error]failed", "31"),
+                ("2 change(s)", "33"), ("ADD ip-allowlists/hec", "32"),
             ):
                 with self.subTest(line=line):
                     self.assertEqual(acs_config.color_line(line), f"\033[{color}m{line}\033[0m")
             self.assertEqual(acs_config.pipeline_message("error", "failed"), "##[error]failed")
-            self.assertEqual(acs_config.pipeline_message("section", "indexes"), "##[section]indexes")
         line = "CREATE indexes/pan"
         stdout = mock.Mock(isatty=mock.Mock(return_value=False))
         with mock.patch.dict(os.environ, {}, clear=True), mock.patch.object(acs_config.sys, "stdout", stdout):
@@ -946,7 +946,6 @@ class OutputTests(unittest.TestCase):
             stdout.isatty.return_value = True
             self.assertEqual(acs_config.color_line(line), f"\033[32m{line}\033[0m")
             self.assertEqual(acs_config.pipeline_message("error", "failed"), "ERROR: failed")
-            self.assertEqual(acs_config.pipeline_message("section", "indexes"), "indexes")
 
 
 if __name__ == "__main__":

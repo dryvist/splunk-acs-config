@@ -9,7 +9,7 @@ def color_line(line):
         return line
     if line.startswith(("CREATE ", "ADD ", "created ", "NO DIFFERENCES")):
         color = "32"
-    elif line.startswith(("UPDATE ", "changed ")):
+    elif line.startswith(("UPDATE ", "changed ")) or line.endswith(" change(s)"):
         color = "33"
     elif line.startswith(("REMOVE ", "DELETE ", "ONLY LIVE ", "deleted ", "DATA LOSS:",
                           "ERROR: ", "##[error]")):
@@ -22,4 +22,4 @@ def color_line(line):
 def pipeline_message(level, message):
     if "TF_BUILD" in os.environ:
         return f"##[{level}]{message}"
-    return message if level in ("section", "group") else f"{level.upper()}: {message}"
+    return f"{level.upper()}: {message}"

@@ -564,7 +564,7 @@ def describe(c):
 
 def show(changes, types, env):
     for t in types:
-        print(pipeline_message("section", f"{t} (repo vs {env} live)"))
+        print(f"{t} (repo vs {env} live)")
         for c in changes:
             if c["type"] == t:
                 for line in describe(c):
@@ -672,7 +672,7 @@ def push_command(root, env, types, names, allow_delete):
     for c in changes:
         if not applicable(c, allow_delete):
             continue
-        print(f"{c['op']} {c['type']}/{c['key']}", flush=True)
+        print(color_line(f"{c['op']} {c['type']}/{c['key']}"), flush=True)
         try:
             try:
                 accepted = apply_change(c, session) == 202
@@ -690,7 +690,7 @@ def push_command(root, env, types, names, allow_delete):
     hecs = {c["key"] for c in changes if c["type"] == "hec-tokens" and c["op"] in ("CREATE", "UPDATE")}
     if hecs:
         spec = TYPES["hec-tokens"]
-        print(pipeline_message("section", "HEC tokens created or updated"))
+        print("HEC tokens created or updated")
         for item in paged_items(spec["list"], spec["items"]):
             hec = item.get("spec", item)
             if hec.get("name") in hecs:
@@ -768,7 +768,7 @@ def pull_type(root, envs, env, t, names, live=None):
 
 def pull_command(root, envs, env, types, names, live=None):
     for t in types:
-        print(pipeline_message("section", f"{t} ({env} live into repo)"))
+        print(f"{t} ({env} live into repo)")
         pull_type(root, list(envs), env, t, names, None if live is None else live[t])
     write_doc(root)
 
@@ -777,7 +777,7 @@ def fetch_command(env, types, names, out):
     """Write the live objects of each type to out as JSON, for a later pull --live-dir."""
     live = {}
     for t in types:
-        print(pipeline_message("section", f"{t} ({env} live)"))
+        print(f"{t} ({env} live)")
         live[t] = pull_values(t, names)
         print(f"{len(live[t])} objects")
     out.parent.mkdir(parents=True, exist_ok=True)
